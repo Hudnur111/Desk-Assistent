@@ -19,6 +19,9 @@ class Settings:
     ui_enabled: bool = False
     ui_host: str = "127.0.0.1"
     ui_port: int = 8000
+    memory_enabled: bool = True
+    memory_path: str = "data/history.json"
+    daily_briefing_time: str | None = None
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -47,4 +50,8 @@ class Settings:
             ui_enabled=os.environ.get("JARVIS_UI_ENABLED", "false").lower() == "true",
             ui_host=os.environ.get("JARVIS_UI_HOST", cls.ui_host),
             ui_port=int(os.environ.get("JARVIS_UI_PORT", cls.ui_port)),
+            memory_enabled=os.environ.get("JARVIS_MEMORY_ENABLED", "true").lower()
+            == "true",
+            memory_path=os.environ.get("JARVIS_MEMORY_PATH", cls.memory_path),
+            daily_briefing_time=os.environ.get("JARVIS_DAILY_BRIEFING_TIME") or None,
         )

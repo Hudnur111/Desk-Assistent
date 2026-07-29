@@ -1,0 +1,19 @@
+[Unit]
+Description=Jarvis Desk Assistant
+After=network-online.target sound.target
+Wants=network-online.target
+
+[Service]
+Type=notify
+NotifyAccess=main
+WatchdogSec=30
+ExecStart=/home/pi/jarvis/.venv/bin/jarvis
+WorkingDirectory=/home/pi/jarvis
+EnvironmentFile=/home/pi/jarvis/.env
+Restart=always
+RestartSec=5
+User=pi
+Group=pi
+
+[Install]
+WantedBy=multi-user.target

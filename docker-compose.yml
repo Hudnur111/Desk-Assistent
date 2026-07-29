@@ -1,0 +1,13 @@
+services:
+  jarvis:
+    build: .
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
+    # Fuer Sprachmodus (JARVIS_VOICE_ENABLED=true) Audio-Geraet durchreichen:
+    # devices:
+    #   - "/dev/snd:/dev/snd"

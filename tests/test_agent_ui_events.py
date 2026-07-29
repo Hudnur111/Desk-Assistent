@@ -30,18 +30,23 @@ class FakeClient:
         self.messages = FakeMessages(responses)
 
 
+class FakeBlock(SimpleNamespace):
+    """Ahmt die model_dump()-Schnittstelle echter Anthropic-Content-Blocks nach."""
+
+    def model_dump(self) -> dict:
+        return dict(self.__dict__)
+
+
 def _text_response(text: str) -> SimpleNamespace:
     return SimpleNamespace(
-        stop_reason="end_turn", content=[SimpleNamespace(type="text", text=text)]
+        stop_reason="end_turn", content=[FakeBlock(type="text", text=text)]
     )
 
 
 def _tool_use_response(call_id: str, name: str, tool_input: dict) -> SimpleNamespace:
     return SimpleNamespace(
         stop_reason="tool_use",
-        content=[
-            SimpleNamespace(type="tool_use", id=call_id, name=name, input=tool_input)
-        ],
+        content=[FakeBlock(type="tool_use", id=call_id, name=name, input=tool_input)],
     )
 
 

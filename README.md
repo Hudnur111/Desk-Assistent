@@ -37,6 +37,40 @@ Autonomer, sprach- und UI-gesteuerter Assistent für Raspberry Pi 4B — IT-Cons
 
   Visuell mit echtem (headless) Chromium via Playwright verifiziert - alle vier
   Zustände sowie der Nachrichten-/Tool-Log wurden gerendert und geprüft.
+- **Phase 5 (Autonomie):**
+  - Persistenter Memory-Layer (`src/jarvis/memory.py`): Gesprächsverlauf wird
+    als JSON gespeichert und beim Neustart geladen - Sitzungen bauen aufeinander auf.
+  - Proaktiver Trigger (`src/jarvis/scheduler.py`): optionales tägliches
+    Briefing zu fester Uhrzeit (`JARVIS_DAILY_BRIEFING_TIME`), legt den Prompt
+    selbstständig in dieselbe Agent-Queue wie Konsole/Sprache.
+  - systemd-Watchdog-Integration (`src/jarvis/watchdog.py`): sd_notify direkt
+    per Unix-Socket implementiert (keine libsystemd-Abhängigkeit) - meldet
+    Bereitschaft und sendet Herzschlag, damit `WatchdogSec` + `Restart=always`
+    hängende Prozesse automatisch neu starten.
+  - Ressourcen-Logging (`src/jarvis/resource_monitor.py`): periodisches
+    RSS/CPU-Logging über die stdlib (`resource`), keine zusätzliche
+    Abhängigkeit wie `psutil`.
+  - Robuste Fehlerbehandlung: Ausfälle der Claude-API (`anthropic.APIError`)
+    werden abgefangen, der Verlauf sauber zurückgerollt und eine
+    verständliche deutsche Fallback-Antwort zurückgegeben statt eines Absturzes -
+    gegen die echte API mit ungültigem Key verifiziert (401 wurde korrekt
+    abgefangen).
+- **Phase 6 (Härtung):**
+  - `Dockerfile` + `docker-compose.yml` für Container-Betrieb als Alternative
+    zu systemd+venv.
+  - `deploy/systemd/jarvis.service` (Type=notify, Watchdog, Restart=always)
+    und `deploy/autostart/jarvis-kiosk.desktop` für Chromium-Kiosk-Autostart -
+    siehe `deploy/README.md`.
+  - Secrets-Management bewusst einfach gehalten: `.env` (gitignored) statt
+    Vault/Secret-Manager - passend für ein Einzelnutzer-Pi-Projekt.
+  - Tests für Agent-Loop, Tool-Dispatch und Fehlerpfade: 42 Tests insgesamt.
+
+  Hinweis: Der Docker-Build wurde in dieser Sandbox tatsächlich versucht (Docker-
+  Daemon lief) und schlägt am Image-Pull fehl - `production.cloudfront.docker.com`
+  (Docker Hub Blob-Storage) ist per Netzwerk-Policy nicht erreichbar, verifiziert
+  per direktem Curl-Test. Dockerfile/Compose sind nach Best Practices geschrieben,
+  aber der tatsächliche Build muss auf einer Maschine mit Docker-Hub-Zugriff
+  (z. B. dem Pi) verifiziert werden.
 
 ## Setup
 

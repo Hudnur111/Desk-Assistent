@@ -1,4 +1,5 @@
 import asyncio
+import datetime as dt
 import logging
 from pathlib import Path
 
@@ -13,13 +14,17 @@ from jarvis.audio.vad import EnergyVAD
 from jarvis.audio.wakeword import WakeWordDetector
 from jarvis.config import Settings
 from jarvis.logging_setup import configure_logging
+from jarvis.memory import MemoryStore
 from jarvis.pipeline import VoicePipeline
+from jarvis.resource_monitor import log_resource_usage_periodically
+from jarvis.scheduler import DailyBriefingTrigger
 from jarvis.tools.builtin import builtin_tools
 from jarvis.tools.documents import document_tools
 from jarvis.tools.email import ImapEmailBackend, build_email_draft_tool
 from jarvis.tools.registry import ToolRegistry
 from jarvis.ui.hub import UIHub
 from jarvis.ui.server import create_app
+from jarvis.watchdog import notify_ready, run_watchdog_heartbeat
 
 logger = logging.getLogger(__name__)
 
@@ -66,11 +71,33 @@ async def run() -> None:
 
     ui_hub = UIHub() if settings.ui_enabled else None
 
+    memory = MemoryStore(Path(settings.memory_path)) if settings.memory_enabled else None
+    initial_history = await memory.load() if memory is not None else None
+
     client = AsyncAnthropic(api_key=settings.anthropic_api_key)
-    agent = Agent(client=client, model=settings.model, tools=registry, ui_hub=ui_hub)
+    agent = Agent(
+        client=client,
+        model=settings.model,
+        tools=registry,
+        ui_hub=ui_hub,
+        memory=memory,
+        initial_history=initial_history,
+    )
 
     queue: "asyncio.Queue[str]" = asyncio.Queue()
-    tasks = [asyncio.create_task(_read_console_input(queue))]
+    tasks = [
+        asyncio.create_task(_read_console_input(queue)),
+        asyncio.create_task(log_resource_usage_periodically()),
+        asyncio.create_task(run_watchdog_heartbeat()),
+    ]
+    await notify_ready()
+
+    if settings.daily_briefing_time:
+        hour, _, minute = settings.daily_briefing_time.partition(":")
+        briefing = DailyBriefingTrigger(
+            output_queue=queue, at=dt.time(int(hour), int(minute))
+        )
+        tasks.append(asyncio.create_task(briefing.run()))
 
     if settings.ui_enabled:
         import uvicorn

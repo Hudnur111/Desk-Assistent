@@ -1,0 +1,5 @@
+[Desktop Entry]
+Type=Application
+Name=Jarvis Kiosk
+Exec=chromium-browser --kiosk --noerrdialogs --disable-infobars --incognito http://127.0.0.1:8000
+X-GNOME-Autostart-enabled=true

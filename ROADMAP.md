@@ -52,16 +52,48 @@ Aufbauend auf [ARCHITECTURE.md](./ARCHITECTURE.md). Jede Phase liefert ein lauff
   `tests/test_ui_server.py`, `tests/test_agent_ui_events.py`) sowie visuell
   mit echtem headless Chromium via Playwright (alle vier Zustände + Log
   gerendert und geprüft)
-- **Offen:** Chromium-Kiosk-Autostart auf dem echten Pi (systemd/autostart),
-  Lasttest der GPU-Beschleunigung unter Raspberry Pi OS
+- Kiosk-Autostart-Artefakt bereits erstellt (`deploy/autostart/jarvis-kiosk.desktop`,
+  Phase 6) - **Offen:** Lasttest der GPU-Beschleunigung unter echtem Raspberry Pi OS
 
-## Phase 5 — Autonomie & Feinschliff
-- Persistenter Memory-Layer über Sessions hinweg
-- Proaktive Aktionen (z. B. Kalender-Check, Briefings)
-- `systemd`-Services für alle Komponenten inkl. Watchdog/Auto-Restart
-- Ressourcen-Profiling (CPU/RAM), Whisper-Modellgröße feinjustieren
+## Phase 5 — Autonomie & Feinschliff ✅
+- Persistenter Memory-Layer über Sessions hinweg — `src/jarvis/memory.py`
+  (`MemoryStore`, JSON-Datei), in `Agent` eingebunden (`initial_history` beim
+  Start laden, nach jedem Turn speichern); per Round-Trip-Tests abgesichert
+- Proaktive Aktionen — `src/jarvis/scheduler.py` (`DailyBriefingTrigger`):
+  legt zu fester Uhrzeit selbststaendig einen Briefing-Prompt in dieselbe
+  Queue wie Konsole/Sprache; Zeitlogik mit injizierbarer Uhr/Sleep-Funktion
+  getestet (kein echtes Warten in Tests noetig)
+- systemd-Watchdog — `src/jarvis/watchdog.py`: sd_notify-Protokoll direkt per
+  Unix-Datagram-Socket (keine libsystemd-Abhaengigkeit), `notify_ready()` +
+  periodischer Heartbeat; end-to-end mit echtem gebundenem Socket getestet
+- Ressourcen-Profiling — `src/jarvis/resource_monitor.py`: periodisches
+  RSS/CPU-Logging ueber die stdlib (`resource`-Modul, kein `psutil`);
+  Whisper-Modellgroesse bleibt ueber `JARVIS_WHISPER_MODEL` konfigurierbar
+  (Default `tiny`, passend fuer den Pi 4)
+- Robuste Fehlerbehandlung als Teil dieser Phase vorgezogen: `Agent` faengt
+  `anthropic.APIError` ab, rollt den Verlauf sauber zurueck, liefert eine
+  deutsche Fallback-Antwort — verifiziert gegen die echte API mit
+  ungueltigem Key (401 korrekt abgefangen, kein Absturz)
+- In `main.py` verdrahtet: Memory-Load beim Start, Resource-Monitor- und
+  Watchdog-Heartbeat-Tasks laufen immer, Briefing-Task nur wenn
+  `JARVIS_DAILY_BRIEFING_TIME` gesetzt ist
 
-## Phase 6 — Härtung
-- Docker-Compose-Packaging, Secrets-Management
-- Offline-Fallback bei Netzwerkausfall, robuste Fehlerbehandlung
-- Tests für Agent-Loop und Tool-Dispatch
+## Phase 6 — Härtung ✅ (Docker-Build in der Sandbox nicht testbar)
+- `Dockerfile` + `docker-compose.yml` + `.dockerignore` fuer Container-Betrieb
+  als Alternative zu systemd+venv
+- `deploy/systemd/jarvis.service` (Type=notify, WatchdogSec=30,
+  Restart=always) und `deploy/autostart/jarvis-kiosk.desktop` fuer
+  Chromium-Kiosk-Autostart, dokumentiert in `deploy/README.md`
+- Secrets-Management: bewusst `.env` (gitignored) statt Vault/Secret-Manager —
+  angemessen fuer ein Einzelnutzer-Pi-Projekt, keine zusaetzliche Infrastruktur
+- Offline-Fallback bei Netzwerkausfall / robuste Fehlerbehandlung: siehe
+  Phase 5 (API-Fehlerpfad des Agenten)
+- Tests fuer Agent-Loop und Tool-Dispatch: durchgehend vorhanden
+  (`test_agent_ui_events.py`, `test_agent_error_handling.py`,
+  `test_tool_registry.py`), 42 Tests insgesamt, alle gruen
+- **Offen:** Docker-Build wurde in dieser Sandbox aktiv versucht (Docker-Daemon
+  laief, `docker build` ausgefuehrt) — schlaegt beim Pull von `python:3.11-slim`
+  fehl, weil `production.cloudfront.docker.com` (Docker Hub Blob-Storage) per
+  Netzwerk-Policy nicht erreichbar ist (per direktem Curl-Test verifiziert,
+  nicht nur vermutet). Muss auf einer Maschine mit Docker-Hub-Zugriff
+  (z. B. dem Pi) gebaut/verifiziert werden.
