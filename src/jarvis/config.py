@@ -16,6 +16,9 @@ class Settings:
     email_address: str | None = None
     email_password: str | None = None
     email_drafts_folder: str = "[Gmail]/Drafts"
+    ui_enabled: bool = False
+    ui_host: str = "127.0.0.1"
+    ui_port: int = 8000
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -41,4 +44,7 @@ class Settings:
             email_drafts_folder=os.environ.get(
                 "JARVIS_EMAIL_DRAFTS_FOLDER", cls.email_drafts_folder
             ),
+            ui_enabled=os.environ.get("JARVIS_UI_ENABLED", "false").lower() == "true",
+            ui_host=os.environ.get("JARVIS_UI_HOST", cls.ui_host),
+            ui_port=int(os.environ.get("JARVIS_UI_PORT", cls.ui_port)),
         )

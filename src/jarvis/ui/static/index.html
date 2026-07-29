@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Jarvis</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body data-state="idle">
+  <div class="scanlines"></div>
+
+  <header class="topbar">
+    <span class="brand">J.A.R.V.I.S.</span>
+    <span class="conn" id="conn">verbindet…</span>
+  </header>
+
+  <main class="stage">
+    <div class="core" id="core">
+      <div class="ring ring-outer"></div>
+      <div class="ring ring-mid"></div>
+      <div class="ring ring-inner"></div>
+      <div class="bars" id="bars">
+        <span></span><span></span><span></span><span></span><span></span>
+        <span></span><span></span><span></span><span></span>
+      </div>
+    </div>
+    <div class="status" id="status">BEREIT</div>
+    <div class="toolcall" id="toolcall"></div>
+  </main>
+
+  <section class="log" id="log" aria-label="Gespraechsverlauf"></section>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

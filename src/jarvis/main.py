@@ -18,6 +18,8 @@ from jarvis.tools.builtin import builtin_tools
 from jarvis.tools.documents import document_tools
 from jarvis.tools.email import ImapEmailBackend, build_email_draft_tool
 from jarvis.tools.registry import ToolRegistry
+from jarvis.ui.hub import UIHub
+from jarvis.ui.server import create_app
 
 logger = logging.getLogger(__name__)
 
@@ -62,11 +64,26 @@ async def run() -> None:
             "JARVIS_EMAIL_PASSWORD nicht vollstaendig gesetzt"
         )
 
+    ui_hub = UIHub() if settings.ui_enabled else None
+
     client = AsyncAnthropic(api_key=settings.anthropic_api_key)
-    agent = Agent(client=client, model=settings.model, tools=registry)
+    agent = Agent(client=client, model=settings.model, tools=registry, ui_hub=ui_hub)
 
     queue: "asyncio.Queue[str]" = asyncio.Queue()
     tasks = [asyncio.create_task(_read_console_input(queue))]
+
+    if settings.ui_enabled:
+        import uvicorn
+
+        assert ui_hub is not None
+        config = uvicorn.Config(
+            create_app(ui_hub),
+            host=settings.ui_host,
+            port=settings.ui_port,
+            log_level="warning",
+        )
+        tasks.append(asyncio.create_task(uvicorn.Server(config).serve()))
+        logger.info("Display-UI unter http://%s:%d", settings.ui_host, settings.ui_port)
 
     tts: TextToSpeech | None = None
     sink: SpeakerSink | None = None
@@ -81,6 +98,7 @@ async def run() -> None:
             stt=SpeechToText(model_size=settings.whisper_model_size),
             vad=EnergyVAD(),
             output_queue=queue,
+            ui_hub=ui_hub,
         )
         tasks.append(asyncio.create_task(pipeline.run()))
         tts = TextToSpeech(
@@ -101,8 +119,12 @@ async def run() -> None:
             reply = await agent.handle_turn(user_text)
             print(f"Jarvis: {reply}\n")
             if tts is not None and sink is not None:
+                if ui_hub is not None:
+                    await ui_hub.emit("status", state="speaking")
                 pcm, sample_rate = await tts.synthesize(reply)
                 await sink.play(pcm, sample_rate)
+                if ui_hub is not None:
+                    await ui_hub.emit("status", state="idle")
     finally:
         for task in tasks:
             task.cancel()

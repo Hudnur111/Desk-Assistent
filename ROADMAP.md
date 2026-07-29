@@ -36,10 +36,24 @@ Aufbauend auf [ARCHITECTURE.md](./ARCHITECTURE.md). Jede Phase liefert ein lauff
 - **Offen:** Live-Verifikation des IMAP-Entwurfs gegen ein echtes Postfach
   (in der Sandbox nicht möglich)
 
-## Phase 4 — Display-UI
-- FastAPI + WebSocket-Server (State-Broadcast: hört zu/denkt/spricht, Verlauf, Tool-Aufrufe)
-- HTML/CSS/JS-Frontend im Avengers-/Cyberpunk-HUD-Stil (Wellenform-/Arc-Reactor-Visualizer)
-- Chromium-Kiosk-Autostart; Lasttest → ggf. Wechsel auf CustomTkinter
+## Phase 4 — Display-UI ✅ (visuell verifiziert, Kiosk-Autostart auf dem Pi offen)
+- FastAPI + WebSocket-Server (`ui/server.py`) mit `UIHub` (`ui/hub.py`) als
+  Pub/Sub-Fanout: State-Broadcast (hört zu/denkt nach/spricht/bereit),
+  Nachrichtenverlauf, Tool-Aufrufe
+- HTML/CSS/JS-Frontend (`ui/static/`) im Avengers-/Cyberpunk-HUD-Stil:
+  animierter Ring (Puls/Rotation je Zustand), Wellenform-Balken beim Sprechen,
+  farbcodiertes Terminal-Log. Bewusst ohne Tailwind-Build-Schritt umgesetzt
+  (handgeschriebenes CSS) - kein Node.js auf dem Pi nötig, einfacher als in
+  ARCHITECTURE.md skizziert
+- `Agent` und `VoicePipeline` senden optional (`ui_hub`-Parameter) Events;
+  ohne aktivierte UI bleibt das Verhalten unveraendert (No-Op)
+- Getestet: `UIHub`-Fanout, WebSocket-Endpunkt (FastAPI TestClient), Agent-
+  Event-Sequenz mit Fake-Client (`tests/test_ui_hub.py`,
+  `tests/test_ui_server.py`, `tests/test_agent_ui_events.py`) sowie visuell
+  mit echtem headless Chromium via Playwright (alle vier Zustände + Log
+  gerendert und geprüft)
+- **Offen:** Chromium-Kiosk-Autostart auf dem echten Pi (systemd/autostart),
+  Lasttest der GPU-Beschleunigung unter Raspberry Pi OS
 
 ## Phase 5 — Autonomie & Feinschliff
 - Persistenter Memory-Layer über Sessions hinweg

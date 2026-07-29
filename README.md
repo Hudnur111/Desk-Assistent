@@ -27,6 +27,16 @@ Autonomer, sprach- und UI-gesteuerter Assistent für Raspberry Pi 4B — IT-Cons
   nie automatisch - Versenden bleibt bewusst ein manueller Schritt im E-Mail-Client.
   Das E-Mail-Tool wird nur registriert, wenn `JARVIS_IMAP_HOST`,
   `JARVIS_EMAIL_ADDRESS` und `JARVIS_EMAIL_PASSWORD` gesetzt sind.
+- **Phase 4 (Display-UI):** FastAPI + WebSocket-Server (`src/jarvis/ui/server.py`)
+  broadcastet Status (`hört zu`/`denkt nach`/`spricht`/`bereit`), Nachrichten und
+  Tool-Aufrufe über den `UIHub` (`src/jarvis/ui/hub.py`) an ein Cyberpunk-HUD-
+  Frontend (`src/jarvis/ui/static/`) - reines HTML/CSS/JS ohne Build-Schritt, damit
+  auf dem Pi kein Node.js noetig ist. Optional per `JARVIS_UI_ENABLED=true`; läuft
+  als weiterer asyncio-Task neben Konsole/Sprache/Agent. Auf dem Pi im
+  Chromium-Kiosk-Modus öffnen: `chromium-browser --kiosk http://127.0.0.1:8000`.
+
+  Visuell mit echtem (headless) Chromium via Playwright verifiziert - alle vier
+  Zustände sowie der Nachrichten-/Tool-Log wurden gerendert und geprüft.
 
 ## Setup
 
@@ -48,6 +58,9 @@ Für Sprachmodus zusätzlich in `.env` setzen: `JARVIS_VOICE_ENABLED=true`,
 
 Für E-Mail-Entwürfe zusätzlich `JARVIS_IMAP_HOST`, `JARVIS_EMAIL_ADDRESS` und
 `JARVIS_EMAIL_PASSWORD` (App-Passwort) setzen.
+
+Für die Display-UI zusätzlich `JARVIS_UI_ENABLED=true` setzen und
+`http://127.0.0.1:8000` im Browser öffnen.
 
 ## Tests
 
