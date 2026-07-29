@@ -1,0 +1,42 @@
+name: Deploy auf Raspberry Pi
+
+# Laeuft auf dem Self-Hosted-Runner, der auf dem Pi selbst installiert ist
+# (siehe deploy/install-runner.sh). Jeder Push auf main zieht damit innerhalb
+# von Sekunden den neuen Stand nach /home/pi/jarvis und startet den Service neu.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      force_deps:
+        description: "Abhaengigkeiten neu installieren, auch ohne Aenderung an pyproject.toml"
+        type: boolean
+        default: false
+
+# Zwei gleichzeitige Deploys wuerden sich im selben Checkout in die Quere
+# kommen. Nicht abbrechen, sondern der Reihe nach abarbeiten.
+concurrency:
+  group: deploy-pi
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, jarvis-pi]
+    timeout-minutes: 30
+    steps:
+      # Checkout laeuft in den Runner-Workspace, NICHT in die laufende
+      # Installation. So kann update.sh sich nicht selbst unter den Fuessen
+      # wegziehen, waehrend es laeuft.
+      - uses: actions/checkout@v4
+
+      - name: Jarvis aktualisieren und neu starten
+        run: bash deploy/update.sh
+        env:
+          JARVIS_APP_DIR: /home/pi/jarvis
+          JARVIS_BRANCH: main
+          JARVIS_SERVICE: jarvis.service
+          JARVIS_FORCE_DEPS: ${{ inputs.force_deps }}
+
+      - name: Service-Status (immer, auch bei Fehlschlag)
+        if: always()
+        run: systemctl status jarvis.service --no-pager --lines=30 || true

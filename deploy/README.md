@@ -1,5 +1,66 @@
 # Deployment auf dem Raspberry Pi 4
 
+## Erstinstallation
+
+```bash
+git clone https://github.com/Hudnur111/Desk-Assistent.git ~/jarvis
+sudo bash ~/jarvis/deploy/bootstrap-pi.sh
+```
+
+Installiert System-Pakete, venv, `.env` (aus `.env.example`), die systemd-Unit
+und die sudo-Regel fuer den Auto-Deploy. Ist idempotent und laesst eine
+bestehende `.env`, `data/` und `.venv/` unangetastet. Pfad und Benutzer werden
+aus dem sudo-Aufrufer abgeleitet und in die Unit eingesetzt - `JARVIS_APP_DIR`
+und `JARVIS_USER` ueberschreiben das.
+
+Danach `ANTHROPIC_API_KEY` in `~/jarvis/.env` eintragen und
+`sudo systemctl start jarvis.service`.
+
+## Automatischer Deploy bei jedem Push
+
+Ein GitHub-Actions-Self-Hosted-Runner laeuft auf dem Pi selbst. Jeder Push auf
+`main` loest damit innerhalb von Sekunden ein Update aus - ohne Portfreigabe,
+ohne dass der Pi von aussen erreichbar sein muss (der Runner baut die
+Verbindung nach draussen auf).
+
+```bash
+bash ~/jarvis/deploy/install-runner.sh
+```
+
+Das Skript laedt und entpackt den Runner und gibt dann die drei Befehle aus,
+die den Registrierungs-Token brauchen (`config.sh`, `svc.sh install`,
+`svc.sh start`) - Token holen unter
+`Settings -> Actions -> Runners -> New self-hosted runner`.
+
+Ablauf bei einem Push:
+
+1. `.github/workflows/deploy-pi.yml` startet auf dem Runner (Label `jarvis-pi`).
+2. `deploy/update.sh` macht `git fetch` + `reset --hard origin/main` in
+   `/home/pi/jarvis`.
+3. Hat sich `pyproject.toml` geaendert, laeuft `pip install -e .` nach.
+4. `sudo systemctl restart jarvis.service`. Wegen `Type=notify` kehrt der
+   Befehl erst zurueck, wenn sich der Dienst als bereit gemeldet hat.
+5. Schlaegt der Start fehl, rollt `update.sh` automatisch auf den vorherigen
+   Commit zurueck und startet den alten Stand wieder - der Assistent bleibt
+   also auch nach einem kaputten Commit lauffaehig. Der Workflow schlaegt dann
+   rot fehl.
+
+`.env`, `.venv/` und `data/` stehen in `.gitignore` und werden vom Deploy nie
+angefasst. Es laeuft kein `git clean`.
+
+Manuell nachziehen (ohne Push) geht jederzeit:
+
+```bash
+bash ~/jarvis/deploy/update.sh
+```
+
+Ueber `Actions -> Deploy auf Raspberry Pi -> Run workflow` laesst sich ein
+Deploy auch von Hand ausloesen, dort optional mit erzwungener
+Neuinstallation der Abhaengigkeiten.
+
+Die sudo-Regel in `/etc/sudoers.d/jarvis-deploy` erlaubt genau einen Befehl
+ohne Passwort - `systemctl restart jarvis.service`. Kein allgemeines NOPASSWD.
+
 ## systemd-Service (empfohlen fuer den Dauerbetrieb)
 
 ```bash
