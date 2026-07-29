@@ -25,10 +25,16 @@ Aufbauend auf [ARCHITECTURE.md](./ARCHITECTURE.md). Jede Phase liefert ein lauff
   möglich, da kein Audio-Device und `huggingface.co` per Netzwerk-Policy
   blockiert sind).
 
-## Phase 3 — Büro-Automatisierung
-- Tool: E-Mail-Entwürfe (Gmail API / IMAP)
-- Tool: Dokument-Erstellung/-Bearbeitung (docx/pdf)
-- Sicherheits-Bestätigungsschritt vor sendenden/verändernden Aktionen
+## Phase 3 — Büro-Automatisierung ✅ (Code fertig, Live-Versand ungetestet)
+- Tool: E-Mail-Entwürfe per IMAP APPEND (App-Passwort statt vollem OAuth-Flow,
+  spart eine schwere Google-API-Abhängigkeit auf dem Pi) — `tools/email.py`
+- Tool: Dokument-Erstellung/-Bearbeitung/-Lesen (`.docx` via `python-docx`) —
+  `tools/documents.py`, vollständig offline getestet
+- Sicherheits-Bestätigungsschritt vor sendenden Aktionen: das Tool legt nur
+  einen Entwurf ab, Versenden bleibt bewusst ein manueller Schritt im
+  E-Mail-Client
+- **Offen:** Live-Verifikation des IMAP-Entwurfs gegen ein echtes Postfach
+  (in der Sandbox nicht möglich)
 
 ## Phase 4 — Display-UI
 - FastAPI + WebSocket-Server (State-Broadcast: hört zu/denkt/spricht, Verlauf, Tool-Aufrufe)

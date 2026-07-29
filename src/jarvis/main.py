@@ -15,6 +15,8 @@ from jarvis.config import Settings
 from jarvis.logging_setup import configure_logging
 from jarvis.pipeline import VoicePipeline
 from jarvis.tools.builtin import builtin_tools
+from jarvis.tools.documents import document_tools
+from jarvis.tools.email import ImapEmailBackend, build_email_draft_tool
 from jarvis.tools.registry import ToolRegistry
 
 logger = logging.getLogger(__name__)
@@ -44,6 +46,21 @@ async def run() -> None:
     registry = ToolRegistry()
     for tool in builtin_tools():
         registry.register(tool)
+    for tool in document_tools():
+        registry.register(tool)
+    if settings.imap_host and settings.email_address and settings.email_password:
+        backend = ImapEmailBackend(
+            host=settings.imap_host,
+            username=settings.email_address,
+            password=settings.email_password,
+            drafts_folder=settings.email_drafts_folder,
+        )
+        registry.register(build_email_draft_tool(backend))
+    else:
+        logger.info(
+            "E-Mail-Tool deaktiviert: JARVIS_IMAP_HOST/JARVIS_EMAIL_ADDRESS/"
+            "JARVIS_EMAIL_PASSWORD nicht vollstaendig gesetzt"
+        )
 
     client = AsyncAnthropic(api_key=settings.anthropic_api_key)
     agent = Agent(client=client, model=settings.model, tools=registry)

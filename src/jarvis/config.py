@@ -12,6 +12,10 @@ class Settings:
     wakeword_models: tuple[str, ...] = field(default_factory=lambda: ("hey_jarvis",))
     piper_model_path: str | None = None
     piper_config_path: str | None = None
+    imap_host: str | None = None
+    email_address: str | None = None
+    email_password: str | None = None
+    email_drafts_folder: str = "[Gmail]/Drafts"
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -31,4 +35,10 @@ class Settings:
             ),
             piper_model_path=os.environ.get("JARVIS_PIPER_MODEL_PATH") or None,
             piper_config_path=os.environ.get("JARVIS_PIPER_CONFIG_PATH") or None,
+            imap_host=os.environ.get("JARVIS_IMAP_HOST") or None,
+            email_address=os.environ.get("JARVIS_EMAIL_ADDRESS") or None,
+            email_password=os.environ.get("JARVIS_EMAIL_PASSWORD") or None,
+            email_drafts_folder=os.environ.get(
+                "JARVIS_EMAIL_DRAFTS_FOLDER", cls.email_drafts_folder
+            ),
         )

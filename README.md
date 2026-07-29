@@ -21,6 +21,12 @@ Autonomer, sprach- und UI-gesteuerter Assistent für Raspberry Pi 4B — IT-Cons
   (`WavFileSource`/`WavFileSink` als Hardware-Ersatz) und per Unit-Tests mit
   Fakes abgedeckt (`tests/`); der volle Hardware-Pfad muss auf dem Pi verifiziert
   werden.
+- **Phase 3 (Büro-Automatisierung):** Tools `create_document`/`append_to_document`/
+  `read_document` (`python-docx`, voll offline getestet) sowie `create_email_draft`
+  (IMAP-APPEND in den Drafts-Ordner, App-Passwort statt OAuth). Die E-Mail sendet
+  nie automatisch - Versenden bleibt bewusst ein manueller Schritt im E-Mail-Client.
+  Das E-Mail-Tool wird nur registriert, wenn `JARVIS_IMAP_HOST`,
+  `JARVIS_EMAIL_ADDRESS` und `JARVIS_EMAIL_PASSWORD` gesetzt sind.
 
 ## Setup
 
@@ -39,6 +45,9 @@ set -a && source .env && set +a
 
 Für Sprachmodus zusätzlich in `.env` setzen: `JARVIS_VOICE_ENABLED=true`,
 `JARVIS_PIPER_MODEL_PATH=/pfad/zu/stimme.onnx` (siehe `.env.example`).
+
+Für E-Mail-Entwürfe zusätzlich `JARVIS_IMAP_HOST`, `JARVIS_EMAIL_ADDRESS` und
+`JARVIS_EMAIL_PASSWORD` (App-Passwort) setzen.
 
 ## Tests
 
