@@ -1,11 +1,19 @@
 import asyncio
 import logging
+from pathlib import Path
 
 from anthropic import AsyncAnthropic
 
 from jarvis.agent.core import Agent
+from jarvis.audio.sinks import SpeakerSink
+from jarvis.audio.sources import MicrophoneSource
+from jarvis.audio.stt import SpeechToText
+from jarvis.audio.tts import TextToSpeech
+from jarvis.audio.vad import EnergyVAD
+from jarvis.audio.wakeword import WakeWordDetector
 from jarvis.config import Settings
 from jarvis.logging_setup import configure_logging
+from jarvis.pipeline import VoicePipeline
 from jarvis.tools.builtin import builtin_tools
 from jarvis.tools.registry import ToolRegistry
 
@@ -14,7 +22,7 @@ logger = logging.getLogger(__name__)
 EXIT_WORDS = {"exit", "quit"}
 
 
-async def _read_console_input(queue: asyncio.Queue[str]) -> None:
+async def _read_console_input(queue: "asyncio.Queue[str]") -> None:
     loop = asyncio.get_running_loop()
     while True:
         try:
@@ -40,10 +48,34 @@ async def run() -> None:
     client = AsyncAnthropic(api_key=settings.anthropic_api_key)
     agent = Agent(client=client, model=settings.model, tools=registry)
 
-    queue: asyncio.Queue[str] = asyncio.Queue()
-    reader_task = asyncio.create_task(_read_console_input(queue))
+    queue: "asyncio.Queue[str]" = asyncio.Queue()
+    tasks = [asyncio.create_task(_read_console_input(queue))]
 
-    print("Jarvis-Konsole bereit. 'exit' zum Beenden.\n")
+    tts: TextToSpeech | None = None
+    sink: SpeakerSink | None = None
+    if settings.voice_enabled:
+        if not settings.piper_model_path:
+            raise RuntimeError(
+                "JARVIS_VOICE_ENABLED=true erfordert JARVIS_PIPER_MODEL_PATH"
+            )
+        pipeline = VoicePipeline(
+            source=MicrophoneSource(),
+            wakeword=WakeWordDetector(model_names=list(settings.wakeword_models)),
+            stt=SpeechToText(model_size=settings.whisper_model_size),
+            vad=EnergyVAD(),
+            output_queue=queue,
+        )
+        tasks.append(asyncio.create_task(pipeline.run()))
+        tts = TextToSpeech(
+            model_path=Path(settings.piper_model_path),
+            config_path=Path(settings.piper_config_path)
+            if settings.piper_config_path
+            else None,
+        )
+        sink = SpeakerSink()
+
+    mode = "Text + Sprache" if settings.voice_enabled else "Text"
+    print(f"Jarvis bereit ({mode}). 'exit' zum Beenden.\n")
     try:
         while True:
             user_text = await queue.get()
@@ -51,8 +83,12 @@ async def run() -> None:
                 break
             reply = await agent.handle_turn(user_text)
             print(f"Jarvis: {reply}\n")
+            if tts is not None and sink is not None:
+                pcm, sample_rate = await tts.synthesize(reply)
+                await sink.play(pcm, sample_rate)
     finally:
-        reader_task.cancel()
+        for task in tasks:
+            task.cancel()
         await client.close()
 
 
