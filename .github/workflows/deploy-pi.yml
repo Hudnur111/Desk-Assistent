@@ -32,11 +32,13 @@ jobs:
       - name: Jarvis aktualisieren und neu starten
         run: bash deploy/update.sh
         env:
-          JARVIS_APP_DIR: /home/pi/jarvis
+          JARVIS_APP_DIR: /home/denny/jarvis
           JARVIS_BRANCH: main
           JARVIS_SERVICE: jarvis.service
           JARVIS_FORCE_DEPS: ${{ inputs.force_deps }}
 
       - name: Service-Status (immer, auch bei Fehlschlag)
         if: always()
-        run: systemctl status jarvis.service --no-pager --lines=30 || true
+        run: |
+          systemctl status jarvis.service --no-pager --lines=30 || true
+          systemctl status jarvis-status.service --no-pager --lines=10 || true

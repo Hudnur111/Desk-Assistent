@@ -9,15 +9,17 @@
 #   bash deploy/update.sh
 #
 # Konfiguration ueber Umgebungsvariablen:
-#   JARVIS_APP_DIR     Installationsverzeichnis   (Default /home/pi/jarvis)
-#   JARVIS_BRANCH      Branch                     (Default main)
-#   JARVIS_SERVICE     systemd-Unit               (Default jarvis.service)
-#   JARVIS_FORCE_DEPS  "true" = pip-Install erzwingen
+#   JARVIS_APP_DIR         Installationsverzeichnis (Default /home/denny/jarvis)
+#   JARVIS_BRANCH          Branch                   (Default main)
+#   JARVIS_SERVICE         systemd-Unit             (Default jarvis.service)
+#   JARVIS_STATUS_SERVICE  Status-Unit       (Default jarvis-status.service)
+#   JARVIS_FORCE_DEPS      "true" = pip-Install erzwingen
 set -euo pipefail
 
-APP_DIR="${JARVIS_APP_DIR:-/home/pi/jarvis}"
+APP_DIR="${JARVIS_APP_DIR:-/home/denny/jarvis}"
 BRANCH="${JARVIS_BRANCH:-main}"
 SERVICE="${JARVIS_SERVICE:-jarvis.service}"
+STATUS_SERVICE="${JARVIS_STATUS_SERVICE:-jarvis-status.service}"
 FORCE_DEPS="${JARVIS_FORCE_DEPS:-false}"
 
 PIP="$APP_DIR/.venv/bin/pip"
@@ -56,6 +58,15 @@ if [[ "$FORCE_DEPS" == "true" || "$previous_deps" != "$(deps_hash)" ]]; then
   deps_reinstalled=true
 else
   log "pyproject.toml unveraendert - pip-Install uebersprungen."
+fi
+
+# Der Status-Dienst liegt mit im Repo, muss also auch neu geladen werden.
+# Bewusst VOR dem Hauptdienst und ohne Rollback-Kopplung: er ist nur ein
+# Monitor - faellt er aus, ist das kein Grund, ein gutes Update zurueckzudrehen.
+if systemctl list-unit-files "$STATUS_SERVICE" --no-legend --plain 2>/dev/null | grep -q .; then
+  log "Starte $STATUS_SERVICE neu ..."
+  sudo -n systemctl restart "$STATUS_SERVICE" \
+    || log "WARNUNG: $STATUS_SERVICE liess sich nicht neu starten - Dashboard evtl. offline."
 fi
 
 log "Starte $SERVICE neu ..."

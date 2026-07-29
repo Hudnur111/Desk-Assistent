@@ -61,6 +61,38 @@ Neuinstallation der Abhaengigkeiten.
 Die sudo-Regel in `/etc/sudoers.d/jarvis-deploy` erlaubt genau einen Befehl
 ohne Passwort - `systemctl restart jarvis.service`. Kein allgemeines NOPASSWD.
 
+## Status-Endpunkt fuer das Dashboard
+
+`jarvis-status.service` liefert unter `http://<pi>:8090/status` JSON mit
+CPU/RAM/Speicher/Temperatur, Uptime, dem aktuellen Commit und dem Zustand von
+`jarvis.service` und des Deploy-Runners. `/health` antwortet nur `ok`, fuer
+externe Uptime-Checks.
+
+Zwei Entscheidungen dahinter:
+
+* **Eigener Dienst, nicht Teil von `jarvis.service`.** Ein Monitor, der mit dem
+  ueberwachten Prozess zusammen stirbt, kann nicht melden, dass dieser
+  gestorben ist - genau dann will man ihn aber lesen.
+* **System-Python statt venv, nur Standardbibliothek.** So antwortet der Status
+  auch waehrend eines laufenden oder fehlgeschlagenen `pip install`, und
+  `pyproject.toml` braucht keine zusaetzliche Abhaengigkeit.
+
+Der Endpunkt ist **nicht authentifiziert** und bindet auf `0.0.0.0`. Im LAN ist
+das in Ordnung; er gehoert aber nicht per Portfreigabe ins offene Internet
+(Hostname, Uptime und Commit-Nachrichten waeren dann oeffentlich lesbar). Fuer
+Zugriff von unterwegs stattdessen ein VPN wie Tailscale nutzen - dann bleibt
+der Port ungeoeffnet.
+
+Wichtig: `Access-Control-Allow-Origin` ist gesetzt. Ohne diesen Header
+blockiert der Browser die Antwort, weil das Dashboard von einem anderen Origin
+geladen wird (`localhost:8765` bzw. `file://`).
+
+Pruefen:
+
+```bash
+curl -s http://localhost:8090/status | python3 -m json.tool
+```
+
 ## systemd-Service (empfohlen fuer den Dauerbetrieb)
 
 ```bash

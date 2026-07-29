@@ -32,6 +32,7 @@ APP_DIR="${JARVIS_APP_DIR:-$TARGET_HOME/jarvis}"
 REPO="${JARVIS_REPO:-https://github.com/Hudnur111/Desk-Assistent.git}"
 BRANCH="${JARVIS_BRANCH:-main}"
 SERVICE=jarvis.service
+STATUS_SERVICE=jarvis-status.service
 
 log() { printf '\n[bootstrap] %s\n' "$*"; }
 as_user() { runuser -u "$TARGET_USER" -- "$@"; }
@@ -74,24 +75,32 @@ else
   log ".env existiert bereits - bleibt unveraendert."
 fi
 
-log "systemd-Unit installieren ..."
-# Die Vorlage im Repo ist auf /home/pi/jarvis und User=pi verdrahtet - hier
+log "systemd-Units installieren ..."
+# Die Vorlagen im Repo sind auf /home/pi/jarvis und User=pi verdrahtet - hier
 # auf den tatsaechlichen Pfad und Benutzer umschreiben.
-sed -e "s|/home/pi/jarvis|$APP_DIR|g" \
-    -e "s|^User=pi$|User=$TARGET_USER|" \
-    -e "s|^Group=pi$|Group=$TARGET_GROUP|" \
-    "$APP_DIR/deploy/systemd/$SERVICE" > "/etc/systemd/system/$SERVICE"
+for unit in "$SERVICE" "$STATUS_SERVICE"; do
+  sed -e "s|/home/pi/jarvis|$APP_DIR|g" \
+      -e "s|^User=pi$|User=$TARGET_USER|" \
+      -e "s|^Group=pi$|Group=$TARGET_GROUP|" \
+      "$APP_DIR/deploy/systemd/$unit" > "/etc/systemd/system/$unit"
+done
 systemctl daemon-reload
 systemctl enable "$SERVICE"
 
+# Der Status-Dienst braucht keinen API-Key und kann sofort laufen - damit
+# zeigt das Dashboard den Pi auch dann schon an, wenn Jarvis selbst noch
+# nicht konfiguriert ist.
+log "Status-Endpunkt starten (Port 8090) ..."
+systemctl enable --now "$STATUS_SERVICE"
+
 log "sudo-Regel fuer den Auto-Deploy schreiben ..."
-# Erlaubt dem Deploy-Benutzer genau einen Befehl ohne Passwort: den Neustart
-# dieser einen Unit. Kein allgemeines NOPASSWD.
+# Erlaubt dem Deploy-Benutzer ohne Passwort genau den Neustart dieser beiden
+# Units - kein allgemeines NOPASSWD.
 SUDOERS=/etc/sudoers.d/jarvis-deploy
 cat > "$SUDOERS" <<EOF
 # Von deploy/bootstrap-pi.sh erzeugt - erlaubt dem GitHub-Actions-Runner,
-# ausschliesslich $SERVICE neu zu starten.
-$TARGET_USER ALL=(root) NOPASSWD: /usr/bin/systemctl restart $SERVICE, /bin/systemctl restart $SERVICE
+# ausschliesslich diese Units neu zu starten.
+$TARGET_USER ALL=(root) NOPASSWD: /usr/bin/systemctl restart $SERVICE, /bin/systemctl restart $SERVICE, /usr/bin/systemctl restart $STATUS_SERVICE, /bin/systemctl restart $STATUS_SERVICE
 EOF
 chmod 440 "$SUDOERS"
 if ! visudo -cf "$SUDOERS" >/dev/null; then
@@ -100,10 +109,12 @@ if ! visudo -cf "$SUDOERS" >/dev/null; then
   exit 1
 fi
 
+IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
+
 if [[ "$env_is_new" == "true" ]] || ! grep -Eq '^ANTHROPIC_API_KEY=.+' "$APP_DIR/.env"; then
   cat <<EOF
 
-[bootstrap] FERTIG - aber der Service wurde noch NICHT gestartet.
+[bootstrap] FERTIG - aber $SERVICE wurde noch NICHT gestartet.
             In $APP_DIR/.env fehlt noch ANTHROPIC_API_KEY.
             Key eintragen, dann starten:
 
@@ -111,10 +122,18 @@ if [[ "$env_is_new" == "true" ]] || ! grep -Eq '^ANTHROPIC_API_KEY=.+' "$APP_DIR
               sudo systemctl start $SERVICE
               systemctl status $SERVICE
 
+            Das Dashboard funktioniert schon jetzt:
+              http://${IP:-<pi-ip>}:8090/status
+
 EOF
 else
   log "Service starten ..."
   systemctl restart "$SERVICE"
   systemctl status "$SERVICE" --no-pager --lines=20 || true
-  log "FERTIG - $SERVICE laeuft."
+  cat <<EOF
+
+[bootstrap] FERTIG - $SERVICE laeuft.
+            Status fuer das Dashboard: http://${IP:-<pi-ip>}:8090/status
+
+EOF
 fi
