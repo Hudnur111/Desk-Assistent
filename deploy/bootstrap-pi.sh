@@ -13,6 +13,8 @@
 #   JARVIS_USER     Ziel-Benutzer          (Default: der sudo-Aufrufer)
 #   JARVIS_APP_DIR  Installationsverzeichnis (Default: ~/jarvis des Benutzers)
 #   JARVIS_BRANCH   Branch                 (Default main)
+#   JARVIS_FAN_GPIO GPIO-Pin des Gehaeuse-Luefters, dauerhaft an (Default 10,
+#                   leer = keine Luefter-Konfiguration)
 set -euo pipefail
 
 if [[ "$(id -u)" -ne 0 ]]; then
@@ -33,6 +35,7 @@ REPO="${JARVIS_REPO:-https://github.com/Hudnur111/Desk-Assistent.git}"
 BRANCH="${JARVIS_BRANCH:-main}"
 SERVICE=jarvis.service
 STATUS_SERVICE=jarvis-status.service
+FAN_NEEDS_REBOOT=false
 
 log() { printf '\n[bootstrap] %s\n' "$*"; }
 as_user() { runuser -u "$TARGET_USER" -- "$@"; }
@@ -48,6 +51,24 @@ apt-get install -y --no-install-recommends \
   python3 python3-venv python3-dev \
   build-essential portaudio19-dev libsndfile1 ffmpeg
 
+FAN_GPIO="${JARVIS_FAN_GPIO:-10}"
+CONFIG_TXT=/boot/firmware/config.txt
+if [[ -n "$FAN_GPIO" && -f "$CONFIG_TXT" ]]; then
+  log "Luefter an GPIO$FAN_GPIO dauerhaft einschalten ..."
+  # gpio=<pin>=op,dh setzt den Pin schon in der Firmware (vor dem Kernel) als
+  # Ausgang auf HIGH - der Luefter geht mit dem Pi an, ohne Kernel-Overlay
+  # oder eigenen Dienst. Keine Temperatursteuerung, einfach dauerhaft an.
+  FAN_LINE="gpio=$FAN_GPIO=op,dh"
+  if ! grep -qxF "$FAN_LINE" "$CONFIG_TXT"; then
+    printf '\n# Von deploy/bootstrap-pi.sh: Luefter an GPIO%s fest auf An\n%s\n' \
+      "$FAN_GPIO" "$FAN_LINE" >> "$CONFIG_TXT"
+    log "config.txt aktualisiert - wird erst nach einem Neustart aktiv."
+    FAN_NEEDS_REBOOT=true
+  else
+    log "Luefter-Konfiguration in config.txt bereits vorhanden."
+  fi
+fi
+
 log "Repository bereitstellen ..."
 if [[ -d "$APP_DIR/.git" ]]; then
   as_user git -C "$APP_DIR" fetch --prune origin "$BRANCH"
@@ -58,12 +79,22 @@ else
   as_user git clone --branch "$BRANCH" "$REPO" "$APP_DIR"
 fi
 
+UV="$TARGET_HOME/.local/bin/uv"
+log "Python 3.11 fuer das venv bereitstellen ..."
+# Debian trixie liefert nur Python 3.13 aus - dafuer gibt es kein
+# tflite-runtime-Wheel (Google baut es hoechstens bis 3.11), eine
+# Hard-Dependency von openwakeword. uv laedt einen fertigen 3.11-Build,
+# unabhaengig vom System-Python, statt stundenlang aus Quellcode zu bauen.
+if [[ ! -x "$UV" ]]; then
+  as_user bash -c 'curl -LsSf https://astral.sh/uv/install.sh | sh'
+fi
+as_user "$UV" python install 3.11
+
 log "Python-venv und Abhaengigkeiten (dauert auf dem Pi einige Minuten) ..."
 if [[ ! -x "$APP_DIR/.venv/bin/python" ]]; then
-  as_user python3 -m venv "$APP_DIR/.venv"
+  as_user "$UV" venv --seed --python 3.11 "$APP_DIR/.venv"
 fi
-as_user "$APP_DIR/.venv/bin/pip" install --upgrade pip setuptools wheel
-as_user "$APP_DIR/.venv/bin/pip" install --upgrade -e "$APP_DIR"
+as_user "$UV" pip install --python "$APP_DIR/.venv/bin/python" --upgrade -e "$APP_DIR"
 
 env_is_new=false
 if [[ ! -f "$APP_DIR/.env" ]]; then
@@ -110,6 +141,10 @@ if ! visudo -cf "$SUDOERS" >/dev/null; then
 fi
 
 IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
+
+if [[ "$FAN_NEEDS_REBOOT" == "true" ]]; then
+  log "Luefter-Konfiguration braucht einen Neustart, um zu greifen: sudo reboot"
+fi
 
 if [[ "$env_is_new" == "true" ]] || ! grep -Eq '^ANTHROPIC_API_KEY=.+' "$APP_DIR/.env"; then
   cat <<EOF

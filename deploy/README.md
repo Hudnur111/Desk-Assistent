@@ -16,6 +16,20 @@ und `JARVIS_USER` ueberschreiben das.
 Danach `ANTHROPIC_API_KEY` in `~/jarvis/.env` eintragen und
 `sudo systemctl start jarvis.service`.
 
+Zusaetzlich installiert `bootstrap-pi.sh`:
+
+* **Python 3.11 per `uv`** fuer das venv, unabhaengig vom System-Python.
+  Debian trixie liefert nur Python 3.13 aus, dafuer gibt es aber kein
+  `tflite-runtime`-Wheel (Hard-Dependency von `openwakeword`, von Google nur
+  bis 3.11 gebaut). `uv python install 3.11` laedt einen fertigen Build in
+  Sekunden statt stundenlang aus Quellcode zu kompilieren.
+* **Gehaeuse-Luefter dauerhaft an** ueber `gpio=<pin>=op,dh` in
+  `/boot/firmware/config.txt` (Default-Pin: `JARVIS_FAN_GPIO=10`, leer setzen
+  zum Deaktivieren). Das ist eine reine Firmware-Direktive - der Pin wird
+  schon vor dem Kernel als Ausgang auf HIGH gesetzt, kein Kernel-Overlay,
+  kein eigener Dienst, keine Temperatursteuerung. Greift erst nach einem
+  Neustart (`sudo reboot`).
+
 ## Automatischer Deploy bei jedem Push
 
 Ein GitHub-Actions-Self-Hosted-Runner laeuft auf dem Pi selbst. Jeder Push auf
