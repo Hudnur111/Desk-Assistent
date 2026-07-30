@@ -158,6 +158,41 @@
   .offline-banner.show { display: flex; }
   .offline-banner svg { width: 17px; height: 17px; stroke: var(--critical); flex: none; }
 
+  /* ---------- Steuerung ---------- */
+  .control-card {
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 14px;
+    box-shadow: var(--shadow); padding: 14px 18px 16px; margin-bottom: 12px;
+  }
+  .control-head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+  .control-head h2 {
+    font-size: 11.5px; font-weight: 700; color: var(--muted); margin: 0;
+    text-transform: uppercase; letter-spacing: 0.06em;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .control-warning {
+    font-size: 11px; font-weight: 600; color: var(--warning);
+    display: flex; align-items: center; gap: 5px;
+  }
+  .control-warning svg { stroke: var(--warning); width: 13px; height: 13px; }
+  .control-buttons { display: flex; gap: 10px; flex-wrap: wrap; }
+  .control-btn {
+    flex: 1; min-width: 110px;
+    display: flex; align-items: center; justify-content: center; gap: 7px;
+    padding: 10px 14px; border-radius: 10px; border: 1px solid var(--border);
+    font-size: 13.5px; font-weight: 650; font-family: inherit; cursor: pointer;
+    background: var(--surface-2); color: var(--text-primary);
+    transition: filter 0.15s ease;
+  }
+  .control-btn:hover { filter: brightness(0.95); }
+  .control-btn:disabled { opacity: 0.5; cursor: default; filter: none; }
+  .control-btn.on { background: color-mix(in srgb, var(--good) 14%, var(--surface-2)); color: var(--good); border-color: color-mix(in srgb, var(--good) 35%, var(--border)); }
+  .control-btn.sleep { background: color-mix(in srgb, var(--warning) 14%, var(--surface-2)); color: color-mix(in srgb, var(--warning) 70%, black); border-color: color-mix(in srgb, var(--warning) 35%, var(--border)); }
+  .control-btn.off { background: color-mix(in srgb, var(--critical) 14%, var(--surface-2)); color: var(--critical); border-color: color-mix(in srgb, var(--critical) 35%, var(--border)); }
+  .control-btn.active-state { outline: 2px solid currentColor; outline-offset: 2px; }
+  .control-feedback { font-size: 12.5px; color: var(--muted); margin-top: 10px; min-height: 1.2em; }
+  .control-feedback.error { color: var(--critical); font-weight: 600; }
+  .control-feedback.ok { color: var(--good); font-weight: 600; }
+
   .gauge-grid {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
@@ -329,6 +364,31 @@
       Keine Verbindung zum Pi. Ist er eingeschaltet und im Netzwerk?
   </div>
 
+  <div class="control-card">
+    <div class="control-head">
+      <h2><svg class="icon" viewBox="0 0 24 24" style="width:13px;height:13px"><path d="M18.36 6.64a9 9 0 1 1-12.73 0M12 2v10"></path></svg>Steuerung</h2>
+      <span class="control-warning" title="Diese Knoepfe sind nicht durch ein Passwort geschuetzt - jeder im selben Netzwerk kann sie benutzen.">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M12 9v4M12 17h.01"></path><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L14.71 3.86a2 2 0 0 0-3.42 0z"></path></svg>
+        ungeschützt im Netzwerk
+      </span>
+    </div>
+    <div class="control-buttons">
+      <button class="control-btn on" id="btn-start">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M5 3l14 9-14 9V3z"></path></svg>
+        An
+      </button>
+      <button class="control-btn sleep" id="btn-stop">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+        Ruhemodus
+      </button>
+      <button class="control-btn off" id="btn-shutdown">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M18.36 6.64a9 9 0 1 1-12.73 0M12 2v10"></path></svg>
+        Aus
+      </button>
+    </div>
+    <div class="control-feedback" id="control-feedback"></div>
+  </div>
+
   <div class="gauge-grid">
     <div class="gauge-card">
       <div class="gauge-head">
@@ -458,6 +518,10 @@
         <div class="t"><svg class="icon" viewBox="0 0 24 24"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"></path><circle cx="12" cy="12" r="4"></circle></svg>Gehaeuse-Luefter</div>
         <div class="d">Fest an 5V/GND angeschlossen (nicht GPIO-geschaltet) - laeuft dauerhaft mit voller Drehzahl, sobald der Pi Strom hat. Keine Software-Steuerung noetig.</div>
       </div>
+      <div class="docs-item">
+        <div class="t"><svg class="icon" viewBox="0 0 24 24"><path d="M18.36 6.64a9 9 0 1 1-12.73 0M12 2v10"></path></svg>Steuerung (An / Ruhemodus / Aus)</div>
+        <div class="d"><b>An</b> startet <code>jarvis.service</code>, <b>Ruhemodus</b> stoppt nur den Assistenten (Pi und Dashboard bleiben erreichbar), <b>Aus</b> fährt den ganzen Pi herunter - danach nur noch per physischem Stromstecker wieder einschaltbar. Diese Knöpfe sind bewusst <b>nicht durch ein Passwort geschützt</b>: jedes Gerät im selben Netzwerk kann sie auslösen. Jede Aktion wird protokolliert (<code>data/control-history.jsonl</code>).</div>
+      </div>
     </div>
   </div>
 
@@ -475,6 +539,7 @@ const RADIUS = 38;
 const CIRC = 2 * Math.PI * RADIUS;
 let cpuHistory = [];
 let memHistory = [];
+let controlActionInFlight = false;
 
 function loadConfig() {
   return {
@@ -567,6 +632,9 @@ function setConnected(ok) {
     document.getElementById("ip-val").textContent = "–";
     document.getElementById("wifi-val").textContent = "–";
     document.getElementById("restart-val").textContent = "–";
+    if (!controlActionInFlight) {
+      document.querySelectorAll(".control-btn").forEach(b => b.disabled = true);
+    }
   }
 }
 
@@ -587,6 +655,55 @@ async function poll() {
     setConnected(false);
   }
 }
+
+function controlBaseUrl() {
+  const { host, port } = loadConfig();
+  return (!host || !port) ? "" : ("http://" + host + ":" + port);
+}
+
+const CONTROL_CONFIRM = {
+  start: null,
+  stop: "Jarvis wirklich pausieren (Ruhemodus)? Der Pi und das Dashboard bleiben erreichbar, nur der Assistent stoppt.",
+  shutdown: "Den Pi wirklich komplett herunterfahren? Er laesst sich danach NICHT ferngesteuert wieder einschalten - dafuer brauchst du physischen Zugriff (Stecker/Steckdose).",
+};
+
+async function sendControl(action, btn) {
+  if (CONTROL_CONFIRM[action] && !confirm(CONTROL_CONFIRM[action])) return;
+
+  const feedback = document.getElementById("control-feedback");
+  controlActionInFlight = true;
+  document.querySelectorAll(".control-btn").forEach(b => b.disabled = true);
+  feedback.className = "control-feedback";
+  feedback.textContent = "Sende Befehl …";
+
+  try {
+    const res = await fetch(controlBaseUrl() + "/control/" + action, {
+      method: "POST", signal: AbortSignal.timeout(10000),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && data.ok) {
+      feedback.className = "control-feedback ok";
+      feedback.textContent = action === "shutdown"
+        ? "Shutdown ausgeloest - der Pi faehrt jetzt herunter."
+        : "Erledigt.";
+    } else {
+      feedback.className = "control-feedback error";
+      feedback.textContent = "Fehlgeschlagen: " + (data.message || res.status);
+    }
+  } catch (e) {
+    feedback.className = "control-feedback error";
+    feedback.textContent = "Keine Antwort vom Pi - Befehl evtl. trotzdem angekommen.";
+  } finally {
+    controlActionInFlight = false;
+    // Kein direktes Wieder-Enablen hier - der naechste poll()-Zyklus (alle
+    // 3s) setzt den Button-Zustand passend zum tatsaechlichen Jarvis-Status.
+    setTimeout(poll, 500);
+  }
+}
+
+document.getElementById("btn-start").addEventListener("click", (e) => sendControl("start", e.currentTarget));
+document.getElementById("btn-stop").addEventListener("click", (e) => sendControl("stop", e.currentTarget));
+document.getElementById("btn-shutdown").addEventListener("click", (e) => sendControl("shutdown", e.currentTarget));
 
 function render(d) {
   document.getElementById("hostname").textContent = d.hostname || "Pi Status";
@@ -650,6 +767,13 @@ function render(d) {
     jDetail += " · seit " + formatUptime(jarvis.uptime_seconds);
   }
   document.getElementById("jarvis-detail").textContent = jDetail;
+  if (!controlActionInFlight) {
+    document.getElementById("btn-start").disabled = jarvis.active === true;
+    document.getElementById("btn-stop").disabled = jarvis.active !== true;
+    // Aus steuert den ganzen Pi, nicht nur Jarvis - unabhaengig vom
+    // Jarvis-Status immer klickbar (ausser waehrend eine Aktion laeuft).
+    document.getElementById("btn-shutdown").disabled = false;
+  }
   const restarts = jarvis.restart_count;
   document.getElementById("restart-val").textContent = restarts != null ? restarts : "–";
 

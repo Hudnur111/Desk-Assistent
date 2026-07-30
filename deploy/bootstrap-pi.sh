@@ -134,15 +134,19 @@ systemctl enable --now "$STATUS_SERVICE"
 log "Auto-Update-Timer starten (Polling alle 90s) ..."
 systemctl enable --now "$UPDATE_TIMER"
 
-log "sudo-Regel fuer den Auto-Deploy schreiben ..."
-# Erlaubt dem Deploy-Benutzer ohne Passwort genau den Neustart dieser beiden
-# Units - kein allgemeines NOPASSWD. Gilt fuer den Update-Timer genauso wie
-# fuer einen optionalen GitHub-Actions-Runner, falls der spaeter dazukommt.
+log "sudo-Regel fuer Auto-Deploy und Dashboard-Steuerung schreiben ..."
+# Erlaubt dem Deploy-/Status-Benutzer ohne Passwort ausschliesslich diese
+# konkreten Befehle - kein allgemeines NOPASSWD. Die letzten drei Eintraege
+# sind fuer die An/Ruhemodus/Aus-Knoepfe im Dashboard (jarvis-status.service
+# ruft sie im Auftrag eines Browser-Klicks auf).
 SUDOERS=/etc/sudoers.d/jarvis-deploy
 cat > "$SUDOERS" <<EOF
-# Von deploy/bootstrap-pi.sh erzeugt - erlaubt dem Auto-Update (Timer oder
-# GitHub-Actions-Runner), ausschliesslich diese Units neu zu starten.
+# Von deploy/bootstrap-pi.sh erzeugt.
+# Auto-Update (Timer oder GitHub-Actions-Runner): Neustart nach Deploy.
 $TARGET_USER ALL=(root) NOPASSWD: /usr/bin/systemctl restart $SERVICE, /bin/systemctl restart $SERVICE, /usr/bin/systemctl restart $STATUS_SERVICE, /bin/systemctl restart $STATUS_SERVICE
+# Dashboard-Steuerung (An/Ruhemodus/Aus) - unauthentifiziert erreichbar,
+# siehe deploy/README.md fuer die bewusste Risikoabwaegung.
+$TARGET_USER ALL=(root) NOPASSWD: /usr/bin/systemctl start $SERVICE, /bin/systemctl start $SERVICE, /usr/bin/systemctl stop $SERVICE, /bin/systemctl stop $SERVICE, /usr/bin/systemctl poweroff, /bin/systemctl poweroff
 EOF
 chmod 440 "$SUDOERS"
 if ! visudo -cf "$SUDOERS" >/dev/null; then

@@ -231,6 +231,74 @@ def service_restart_count(unit: str) -> int | None:
     return None
 
 
+# --------------------------------------------------------------------------
+# Steuerung (An / Ruhemodus / Aus)
+# --------------------------------------------------------------------------
+# Unauthentifiziert wie der Rest dieses Dienstes - bewusste Entscheidung
+# (siehe deploy/README.md). sudoers erlaubt genau diese drei Befehle ohne
+# Passwort, nichts Allgemeineres.
+CONTROL_ACTIONS = {
+    "start": ("start", SERVICE),
+    "stop": ("stop", SERVICE),
+    "shutdown": ("poweroff", None),
+}
+
+CONTROL_HISTORY_FILE = os.path.join(APP_DIR, "data", "control-history.jsonl")
+
+
+def log_control_action(action: str, ok: bool) -> None:
+    try:
+        os.makedirs(os.path.dirname(CONTROL_HISTORY_FILE), exist_ok=True)
+        with open(CONTROL_HISTORY_FILE, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps({
+                "ts": datetime.now().isoformat(timespec="seconds"),
+                "action": action,
+                "ok": ok,
+            }, ensure_ascii=False) + "\n")
+    except OSError:
+        pass
+
+
+def read_control_history(limit: int = 5) -> list[dict]:
+    try:
+        with open(CONTROL_HISTORY_FILE, encoding="utf-8") as fh:
+            lines = fh.readlines()
+    except OSError:
+        return []
+    entries = []
+    for line in lines[-limit:]:
+        try:
+            entries.append(json.loads(line))
+        except json.JSONDecodeError:
+            continue
+    entries.reverse()
+    return entries
+
+
+def run_control_action(action: str) -> tuple[bool, str]:
+    """Fuehrt eine der drei Dashboard-Aktionen per sudo aus.
+
+    Kein Passwort noetig (siehe sudoers-Regel aus bootstrap-pi.sh), aber
+    strikt auf genau diese drei Befehle beschraenkt - kein beliebiger
+    Shell-Zugriff.
+    """
+    spec = CONTROL_ACTIONS.get(action)
+    if spec is None:
+        return False, "unbekannte Aktion"
+    verb, unit = spec
+    cmd = ("sudo", "-n", "systemctl", verb) + ((unit,) if unit else ())
+    try:
+        res = subprocess.run(cmd, capture_output=True, text=True, timeout=10, check=False)
+    except (OSError, subprocess.SubprocessError) as exc:
+        log_control_action(action, False)
+        return False, str(exc)
+    ok = res.returncode == 0
+    log_control_action(action, ok)
+    if ok:
+        return True, "OK"
+    return False, (res.stderr or res.stdout or f"exit {res.returncode}").strip()
+
+
 _runner_unit_cache: str | None = None
 
 
@@ -404,6 +472,7 @@ def build_status() -> dict:
             "last_run": last_deploy(),
         },
         "deploy_history": read_deploy_history(),
+        "control_history": read_control_history(),
         "services": {
             "jarvis": {**jarvis, "restart_count": jarvis_restarts},
             "poll_timer": poll_timer,
@@ -428,9 +497,19 @@ class Handler(BaseHTTPRequestHandler):
     def do_OPTIONS(self) -> None:  # noqa: N802
         self.send_response(204)
         self.send_header("Access-Control-Allow-Origin", CORS_ORIGIN)
-        self.send_header("Access-Control-Allow-Methods", "GET, OPTIONS")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
         self.send_header("Access-Control-Max-Age", "86400")
         self.end_headers()
+
+    def do_POST(self) -> None:  # noqa: N802
+        path = self.path.split("?", 1)[0].rstrip("/") or "/"
+        if not path.startswith("/control/"):
+            self._send(404, b'{"error":"not found"}', "application/json")
+            return
+        action = path[len("/control/"):]
+        ok, message = run_control_action(action)
+        body = json.dumps({"ok": ok, "message": message}, ensure_ascii=False).encode("utf-8")
+        self._send(200 if ok else 400, body, "application/json; charset=utf-8")
 
     def do_GET(self) -> None:  # noqa: N802
         path = self.path.split("?", 1)[0].rstrip("/") or "/"

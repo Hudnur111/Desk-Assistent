@@ -126,6 +126,26 @@ das in Ordnung; er gehoert aber nicht per Portfreigabe ins offene Internet
 Zugriff von unterwegs stattdessen ein VPN wie Tailscale nutzen - dann bleibt
 der Port ungeoeffnet.
 
+### Steuerung (An / Ruhemodus / Aus)
+
+Drei POST-Endpunkte, bewusst ohne eigene Authentifizierung (gleiche
+Risikoabwaegung wie beim Rest des Dashboards):
+
+* `POST /control/start` - `systemctl start jarvis.service`
+* `POST /control/stop` - `systemctl stop jarvis.service` (Ruhemodus: Pi und
+  Dashboard bleiben erreichbar, nur der Assistent pausiert)
+* `POST /control/shutdown` - `systemctl poweroff` (kompletter Shutdown - der
+  Pi hat kein zuverlaessiges Wake-on-LAN, danach nur per physischem
+  Stromstecker wieder einschaltbar)
+
+`jarvis-status.service` laeuft als unprivilegierter Benutzer und darf diese
+drei konkreten `systemctl`-Befehle per `sudoers`-Regel ohne Passwort ausfuehren
+(aus `bootstrap-pi.sh`, gleiche Datei wie fuer den Auto-Deploy) - kein
+allgemeines NOPASSWD, kein beliebiger Shell-Zugriff. Jede Aktion wird nach
+`data/control-history.jsonl` protokolliert und im Dashboard angezeigt, da es
+sonst keine Moeglichkeit gibt nachzuvollziehen, wer/was eine Aktion ausgeloest
+hat.
+
 `Access-Control-Allow-Origin` ist trotzdem gesetzt - fuer den Fall, dass die
 Seite mal von woanders (z.B. `file://` oder einem anderen Host) geladen wird
 und cross-origin abfragt.
