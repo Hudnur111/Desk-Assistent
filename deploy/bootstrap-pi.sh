@@ -128,8 +128,17 @@ systemctl enable "$SERVICE"
 # Der Status-Dienst braucht keinen API-Key und kann sofort laufen - damit
 # zeigt das Dashboard den Pi auch dann schon an, wenn Jarvis selbst noch
 # nicht konfiguriert ist.
+#
+# "restart" statt "enable --now": Eigenschaften wie NoNewPrivileges werden
+# dem Prozess beim exec() mitgegeben und bleiben fuer dessen Lebensdauer
+# fixiert - ein reines "enable --now" laesst einen BEREITS laufenden Prozess
+# unangetastet, selbst wenn sich die Unit-Datei inzwischen geaendert hat
+# (live so erlebt: die Steuerungs-Endpunkte schlugen nach einem Update
+# fehl, bis der Dienst tatsaechlich neu gestartet wurde). "restart" startet
+# zuverlaessig neu, egal ob der Dienst vorher lief oder nicht.
 log "Status-Endpunkt starten (Port 8090) ..."
-systemctl enable --now "$STATUS_SERVICE"
+systemctl enable "$STATUS_SERVICE"
+systemctl restart "$STATUS_SERVICE"
 
 # Pollt periodisch auf neue Commits - Alternative zum GitHub-Actions-Runner
 # (deploy/install-runner.sh), die keinen Registrierungs-Token braucht: das
@@ -137,7 +146,8 @@ systemctl enable --now "$STATUS_SERVICE"
 # doch den Runner einrichtet, sollte diesen Timer stoppen, um doppelte
 # Deploys zu vermeiden (`sudo systemctl disable --now jarvis-update.timer`).
 log "Auto-Update-Timer starten (Polling alle 90s) ..."
-systemctl enable --now "$UPDATE_TIMER"
+systemctl enable "$UPDATE_TIMER"
+systemctl restart "$UPDATE_TIMER"
 
 log "sudo-Regel fuer Auto-Deploy und Dashboard-Steuerung schreiben ..."
 # Erlaubt dem Deploy-/Status-Benutzer ohne Passwort ausschliesslich diese
