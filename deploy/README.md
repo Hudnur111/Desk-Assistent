@@ -96,12 +96,18 @@ Kein allgemeines NOPASSWD.
 
 ## Status-Endpunkt fuer das Dashboard
 
-`jarvis-status.service` liefert unter `http://<pi>:8090/status` JSON mit
-CPU/RAM/Speicher/Temperatur, Uptime, dem aktuellen Commit und dem Zustand von
-`jarvis.service` und des Deploy-Runners. `/health` antwortet nur `ok`, fuer
-externe Uptime-Checks.
+`jarvis-status.service` liefert unter `http://<pi>:8090/` ein komplettes
+Live-Dashboard (`deploy/dashboard/index.html`) - von jedem Geraet im selben
+Netz per Browser aufrufbar (Handy, Laptop, ...), ohne dass ein anderer Rechner
+laufen muss. `/status` liefert dieselben Daten als JSON, `/health` antwortet
+nur `ok` fuer externe Uptime-Checks.
 
-Zwei Entscheidungen dahinter:
+Das Dashboard fragt standardmaessig relativ zur eigenen Origin ab (`fetch("status")`)
+- da es vom Pi selbst ausgeliefert wird, ist "die eigene Origin" automatisch
+der richtige Pi. Ueber das Einstellungs-Icon lassen sich Host/Port manuell
+setzen, falls die Seite stattdessen einen *anderen* Pi im Netz abfragen soll.
+
+Drei Entscheidungen dahinter:
 
 * **Eigener Dienst, nicht Teil von `jarvis.service`.** Ein Monitor, der mit dem
   ueberwachten Prozess zusammen stirbt, kann nicht melden, dass dieser
@@ -109,6 +115,10 @@ Zwei Entscheidungen dahinter:
 * **System-Python statt venv, nur Standardbibliothek.** So antwortet der Status
   auch waehrend eines laufenden oder fehlgeschlagenen `pip install`, und
   `pyproject.toml` braucht keine zusaetzliche Abhaengigkeit.
+* **Dashboard direkt vom Pi ausgeliefert statt separat gehostet.** Kein
+  Windows-PC/anderes Geraet muss dafuer laufen; das Dashboard ist verfuegbar,
+  solange der Pi an ist, und wird bei jedem Deploy automatisch mit
+  aktualisiert (`update.sh` restartet `jarvis-status.service` mit).
 
 Der Endpunkt ist **nicht authentifiziert** und bindet auf `0.0.0.0`. Im LAN ist
 das in Ordnung; er gehoert aber nicht per Portfreigabe ins offene Internet
@@ -116,14 +126,15 @@ das in Ordnung; er gehoert aber nicht per Portfreigabe ins offene Internet
 Zugriff von unterwegs stattdessen ein VPN wie Tailscale nutzen - dann bleibt
 der Port ungeoeffnet.
 
-Wichtig: `Access-Control-Allow-Origin` ist gesetzt. Ohne diesen Header
-blockiert der Browser die Antwort, weil das Dashboard von einem anderen Origin
-geladen wird (`localhost:8765` bzw. `file://`).
+`Access-Control-Allow-Origin` ist trotzdem gesetzt - fuer den Fall, dass die
+Seite mal von woanders (z.B. `file://` oder einem anderen Host) geladen wird
+und cross-origin abfragt.
 
 Pruefen:
 
 ```bash
 curl -s http://localhost:8090/status | python3 -m json.tool
+# oder im Browser: http://<pi-ip>:8090/
 ```
 
 ## systemd-Service (empfohlen fuer den Dauerbetrieb)

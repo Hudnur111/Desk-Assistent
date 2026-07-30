@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
-"""Status-Endpunkt fuer das Pico-UI-Dashboard.
+"""Status-Dashboard und -Endpunkt, direkt vom Pi ausgeliefert.
 
+GET /       liefert das Dashboard (deploy/dashboard/index.html) - von jedem
+            Geraet im selben Netz aufrufbar, ohne dass ein anderer Rechner
+            laufen muss.
 GET /status liefert JSON mit Systemauslastung, dem Zustand von jarvis.service
 und dem Deploy-Runner sowie dem aktuell ausgecheckten Commit.
 GET /health liefert nur "ok" - fuer Uptime-Checks.
@@ -31,6 +34,9 @@ import threading
 import time
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+
+DASHBOARD_FILE = Path(__file__).parent / "dashboard" / "index.html"
 
 PORT = int(os.environ.get("JARVIS_STATUS_PORT", "8090"))
 BIND = os.environ.get("JARVIS_STATUS_BIND", "0.0.0.0")
@@ -321,7 +327,14 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:  # noqa: N802
         path = self.path.split("?", 1)[0].rstrip("/") or "/"
-        if path in ("/status", "/"):
+        if path == "/":
+            try:
+                body = DASHBOARD_FILE.read_bytes()
+            except OSError:
+                self._send(404, b"Dashboard-Datei fehlt.", "text/plain; charset=utf-8")
+                return
+            self._send(200, body, "text/html; charset=utf-8")
+        elif path == "/status":
             body = json.dumps(build_status(), ensure_ascii=False).encode("utf-8")
             self._send(200, body, "application/json; charset=utf-8")
         elif path == "/health":
