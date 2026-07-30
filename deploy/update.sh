@@ -38,6 +38,17 @@ previous_commit="$(git rev-parse HEAD)"
 previous_deps="$(deps_hash)"
 deps_reinstalled=false
 
+# Muss VOR dem Update erfasst werden: war $SERVICE schon vorher nicht aktiv
+# (z.B. weil ANTHROPIC_API_KEY noch fehlt), ist ein weiterhin fehlgeschlagener
+# Start danach keine Regression durch dieses Update - dann gibt es nichts,
+# worauf zurueckgerollt werden muesste. Sonst wuerde ein voellig gutes
+# Code-Update wegen eines laengst bekannten Konfigurationsproblems
+# zurueckgedreht.
+service_was_active=false
+if systemctl is-active --quiet "$SERVICE"; then
+  service_was_active=true
+fi
+
 log "Hole origin/$BRANCH ..."
 git fetch --prune origin "$BRANCH"
 target_commit="$(git rev-parse "origin/$BRANCH")"
@@ -77,7 +88,13 @@ if sudo -n systemctl restart "$SERVICE" && systemctl is-active --quiet "$SERVICE
   exit 0
 fi
 
-log "Neustart fehlgeschlagen. Rollback auf ${previous_commit:0:7} ..."
+if [[ "$service_was_active" == "false" ]]; then
+  log "$SERVICE lief schon vor dem Update nicht (z.B. fehlender ANTHROPIC_API_KEY) -"
+  log "kein Rollback, das ist keine Regression durch dieses Update. Code-Stand ${target_commit:0:7} bleibt."
+  exit 0
+fi
+
+log "Neustart fehlgeschlagen (lief vorher einwandfrei). Rollback auf ${previous_commit:0:7} ..."
 log "Falls sudo nach einem Passwort gefragt hat, fehlt /etc/sudoers.d/jarvis-deploy (siehe deploy/bootstrap-pi.sh)."
 git reset --hard "$previous_commit"
 if [[ "$deps_reinstalled" == "true" ]]; then
