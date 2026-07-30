@@ -279,8 +279,21 @@ def last_deploy() -> str:
 # --------------------------------------------------------------------------
 def build_status() -> dict:
     jarvis = service_state(SERVICE)
+    poll_timer = service_state("jarvis-update.timer")
     runner = service_state(find_runner_unit())
     status_self = service_state("jarvis-status.service")
+
+    # Zwei moegliche Auto-Update-Mechanismen (siehe deploy/README.md):
+    # der Polling-Timer (Default, kein Token noetig) oder ein optionaler
+    # GitHub-Actions-Runner. Beide rufen update.sh auf - hier wird gemeldet,
+    # welcher der beiden tatsaechlich aktiv ist, statt nur den Runner zu
+    # pruefen (der im Timer-Betrieb gar nicht installiert ist).
+    if poll_timer["active"]:
+        update_mechanism = "timer"
+    elif runner["active"]:
+        update_mechanism = "runner"
+    else:
+        update_mechanism = None
 
     return {
         "hostname": socket.gethostname(),
@@ -292,14 +305,14 @@ def build_status() -> dict:
         "temperature_c": read_temperature(),
         "uptime_seconds": round(read_uptime()),
         "git": read_git(),
-        # Vom Dashboard gelesen. Der Name stammt aus der Timer-Variante des
-        # Auto-Updates; jetzt gefuellt aus dem Zustand des Deploy-Runners.
         "update_timer": {
-            "active": runner["active"],
+            "active": update_mechanism is not None,
+            "mechanism": update_mechanism,
             "last_run": last_deploy(),
         },
         "services": {
             "jarvis": jarvis,
+            "poll_timer": poll_timer,
             "runner": runner,
             "status": status_self,
         },

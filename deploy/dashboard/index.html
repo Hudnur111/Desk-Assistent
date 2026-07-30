@@ -583,8 +583,14 @@ function render(d) {
   const timer = d.update_timer || {};
   const timerDot = document.getElementById("timer-dot");
   const timerText = document.getElementById("timer-text");
-  if (timer.active) { timerDot.className = "dot good"; timerText.textContent = "Aktiv"; }
-  else { timerDot.className = "dot critical"; timerText.textContent = "Inaktiv"; }
+  const MECHANISM_LABEL = { timer: "Polling-Timer", runner: "Actions-Runner" };
+  if (timer.active) {
+    timerDot.className = "dot good";
+    timerText.textContent = "Aktiv (" + (MECHANISM_LABEL[timer.mechanism] || timer.mechanism) + ")";
+  } else {
+    timerDot.className = "dot critical";
+    timerText.textContent = "Inaktiv";
+  }
   document.getElementById("timer-lastrun").textContent = timer.last_run || "–";
 
   const git = d.git || {};
