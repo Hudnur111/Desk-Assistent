@@ -35,6 +35,8 @@ REPO="${JARVIS_REPO:-https://github.com/Hudnur111/Desk-Assistent.git}"
 BRANCH="${JARVIS_BRANCH:-main}"
 SERVICE=jarvis.service
 STATUS_SERVICE=jarvis-status.service
+UPDATE_SERVICE=jarvis-update.service
+UPDATE_TIMER=jarvis-update.timer
 FAN_NEEDS_REBOOT=false
 
 log() { printf '\n[bootstrap] %s\n' "$*"; }
@@ -109,7 +111,7 @@ fi
 log "systemd-Units installieren ..."
 # Die Vorlagen im Repo sind auf /home/pi/jarvis und User=pi verdrahtet - hier
 # auf den tatsaechlichen Pfad und Benutzer umschreiben.
-for unit in "$SERVICE" "$STATUS_SERVICE"; do
+for unit in "$SERVICE" "$STATUS_SERVICE" "$UPDATE_SERVICE" "$UPDATE_TIMER"; do
   sed -e "s|/home/pi/jarvis|$APP_DIR|g" \
       -e "s|^User=pi$|User=$TARGET_USER|" \
       -e "s|^Group=pi$|Group=$TARGET_GROUP|" \
@@ -124,13 +126,22 @@ systemctl enable "$SERVICE"
 log "Status-Endpunkt starten (Port 8090) ..."
 systemctl enable --now "$STATUS_SERVICE"
 
+# Pollt periodisch auf neue Commits - Alternative zum GitHub-Actions-Runner
+# (deploy/install-runner.sh), die keinen Registrierungs-Token braucht: das
+# Repo ist oeffentlich, git fetch funktioniert ohne Anmeldung. Wer spaeter
+# doch den Runner einrichtet, sollte diesen Timer stoppen, um doppelte
+# Deploys zu vermeiden (`sudo systemctl disable --now jarvis-update.timer`).
+log "Auto-Update-Timer starten (Polling alle 90s) ..."
+systemctl enable --now "$UPDATE_TIMER"
+
 log "sudo-Regel fuer den Auto-Deploy schreiben ..."
 # Erlaubt dem Deploy-Benutzer ohne Passwort genau den Neustart dieser beiden
-# Units - kein allgemeines NOPASSWD.
+# Units - kein allgemeines NOPASSWD. Gilt fuer den Update-Timer genauso wie
+# fuer einen optionalen GitHub-Actions-Runner, falls der spaeter dazukommt.
 SUDOERS=/etc/sudoers.d/jarvis-deploy
 cat > "$SUDOERS" <<EOF
-# Von deploy/bootstrap-pi.sh erzeugt - erlaubt dem GitHub-Actions-Runner,
-# ausschliesslich diese Units neu zu starten.
+# Von deploy/bootstrap-pi.sh erzeugt - erlaubt dem Auto-Update (Timer oder
+# GitHub-Actions-Runner), ausschliesslich diese Units neu zu starten.
 $TARGET_USER ALL=(root) NOPASSWD: /usr/bin/systemctl restart $SERVICE, /bin/systemctl restart $SERVICE, /usr/bin/systemctl restart $STATUS_SERVICE, /bin/systemctl restart $STATUS_SERVICE
 EOF
 chmod 440 "$SUDOERS"

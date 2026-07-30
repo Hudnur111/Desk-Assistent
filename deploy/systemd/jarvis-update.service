@@ -1,0 +1,18 @@
+[Unit]
+Description=Jarvis Auto-Update (einmaliger Lauf, von jarvis-update.timer angestossen)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=pi
+Group=pi
+WorkingDirectory=/home/pi/jarvis
+# Nutzt dieselbe sudo-Regel wie ein GitHub-Actions-Runner es taete (siehe
+# bootstrap-pi.sh) - Restart von jarvis.service/jarvis-status.service ohne
+# Passwort, sonst keine erhoehten Rechte.
+ExecStart=/bin/bash /home/pi/jarvis/deploy/update.sh
+Environment=JARVIS_APP_DIR=/home/pi/jarvis
+Environment=JARVIS_BRANCH=main
+Environment=JARVIS_SERVICE=jarvis.service
+Environment=JARVIS_STATUS_SERVICE=jarvis-status.service

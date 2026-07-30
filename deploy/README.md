@@ -32,48 +32,67 @@ Zusaetzlich installiert `bootstrap-pi.sh`:
 
 ## Automatischer Deploy bei jedem Push
 
-Ein GitHub-Actions-Self-Hosted-Runner laeuft auf dem Pi selbst. Jeder Push auf
-`main` loest damit innerhalb von Sekunden ein Update aus - ohne Portfreigabe,
-ohne dass der Pi von aussen erreichbar sein muss (der Runner baut die
-Verbindung nach draussen auf).
+Zwei Wege stehen zur Wahl, beide fuehren `deploy/update.sh` aus (siehe unten).
+`bootstrap-pi.sh` richtet standardmaessig Variante A ein.
+
+### A) Polling-Timer (Default, braucht keinen Token)
+
+`jarvis-update.timer` pollt alle 90s per `git fetch`, ob `origin/main` weiter
+ist als der lokale Stand, und deployt dann automatisch. Da das Repo oeffentlich
+ist, braucht das keine Anmeldung bei GitHub - kein Token, kein Runner, keine
+Portfreigabe. Nachteil: bis zu ~90s Verzoegerung statt Sekunden.
+
+Laeuft nach `bootstrap-pi.sh` bereits automatisch. Manuell pruefen:
+
+```bash
+systemctl status jarvis-update.timer
+journalctl -u jarvis-update.service -n 50
+```
+
+### B) GitHub-Actions-Self-Hosted-Runner (optional, schneller)
+
+Braucht einen Registrierungs-Token von GitHub (`Settings -> Actions ->
+Runners -> New self-hosted runner`) - bewusst ein manueller Schritt, der nicht
+automatisiert wird. Dafuer deployt jeder Push innerhalb von Sekunden statt
+bis zu 90s.
 
 ```bash
 bash ~/jarvis/deploy/install-runner.sh
 ```
 
-Das Skript laedt und entpackt den Runner und gibt dann die drei Befehle aus,
-die den Registrierungs-Token brauchen (`config.sh`, `svc.sh install`,
-`svc.sh start`) - Token holen unter
-`Settings -> Actions -> Runners -> New self-hosted runner`.
+Gibt danach die drei Befehle aus, die den Token brauchen (`config.sh`,
+`svc.sh install`, `svc.sh start`). Sobald der Runner laeuft, sollte der
+Polling-Timer gestoppt werden, um doppelte/ueberlappende Deploys zu vermeiden:
 
-Ablauf bei einem Push:
+```bash
+sudo systemctl disable --now jarvis-update.timer
+```
 
-1. `.github/workflows/deploy-pi.yml` startet auf dem Runner (Label `jarvis-pi`).
+### Ablauf eines Deploys (beide Varianten)
+
+1. Ausloeser: Timer-Tick (Variante A) oder `.github/workflows/deploy-pi.yml`
+   auf dem Runner mit Label `jarvis-pi` (Variante B).
 2. `deploy/update.sh` macht `git fetch` + `reset --hard origin/main` in
-   `/home/pi/jarvis`.
+   `/home/pi/jarvis` - ist der lokale Stand schon aktuell, passiert nichts.
 3. Hat sich `pyproject.toml` geaendert, laeuft `pip install -e .` nach.
 4. `sudo systemctl restart jarvis.service`. Wegen `Type=notify` kehrt der
    Befehl erst zurueck, wenn sich der Dienst als bereit gemeldet hat.
 5. Schlaegt der Start fehl, rollt `update.sh` automatisch auf den vorherigen
    Commit zurueck und startet den alten Stand wieder - der Assistent bleibt
-   also auch nach einem kaputten Commit lauffaehig. Der Workflow schlaegt dann
-   rot fehl.
+   also auch nach einem kaputten Commit lauffaehig.
 
 `.env`, `.venv/` und `data/` stehen in `.gitignore` und werden vom Deploy nie
 angefasst. Es laeuft kein `git clean`.
 
-Manuell nachziehen (ohne Push) geht jederzeit:
+Manuell nachziehen geht in beiden Varianten jederzeit:
 
 ```bash
 bash ~/jarvis/deploy/update.sh
 ```
 
-Ueber `Actions -> Deploy auf Raspberry Pi -> Run workflow` laesst sich ein
-Deploy auch von Hand ausloesen, dort optional mit erzwungener
-Neuinstallation der Abhaengigkeiten.
-
-Die sudo-Regel in `/etc/sudoers.d/jarvis-deploy` erlaubt genau einen Befehl
-ohne Passwort - `systemctl restart jarvis.service`. Kein allgemeines NOPASSWD.
+Die sudo-Regel in `/etc/sudoers.d/jarvis-deploy` erlaubt genau zwei Befehle
+ohne Passwort - Neustart von `jarvis.service` und `jarvis-status.service`.
+Kein allgemeines NOPASSWD.
 
 ## Status-Endpunkt fuer das Dashboard
 
