@@ -18,12 +18,17 @@ RestartSec=5
 User=pi
 Group=pi
 
-# Der Dienst hoert im Netzwerk, liest aber ausschliesslich. Also so wenig
-# Rechte wie moeglich - er braucht nirgends Schreibzugriff.
-NoNewPrivileges=true
+# Der Dienst steuert per sudo drei konkrete systemctl-Befehle (An/Ruhemodus/
+# Aus, siehe deploy/README.md) und schreibt sein eigenes Protokoll nach
+# data/ - NoNewPrivileges wuerde sudo komplett blockieren (setuid braucht
+# genau die Privilegien-Eskalation, die dieses Flag verbietet), deshalb hier
+# bewusst NICHT gesetzt, anders als man fuer einen rein lesenden Dienst
+# erwarten wuerde. ProtectHome bleibt read-only bis auf den einen Ordner,
+# den der Dienst tatsaechlich beschreiben muss.
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=read-only
+ReadWritePaths=/home/pi/jarvis/data
 ProtectKernelTunables=true
 ProtectControlGroups=true
 RestrictSUIDSGID=true

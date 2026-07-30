@@ -81,6 +81,11 @@ else
   as_user git clone --branch "$BRANCH" "$REPO" "$APP_DIR"
 fi
 
+# Muss existieren, BEVOR jarvis-status.service startet: die Unit verwendet
+# ReadWritePaths=.../data als gezielte Ausnahme von ProtectHome=read-only,
+# und dieser Bind-Mount funktioniert nur fuer bereits vorhandene Pfade.
+install -d -o "$TARGET_USER" -g "$TARGET_GROUP" "$APP_DIR/data"
+
 UV="$TARGET_HOME/.local/bin/uv"
 log "Python 3.11 fuer das venv bereitstellen ..."
 # Debian trixie liefert nur Python 3.13 aus - dafuer gibt es kein
