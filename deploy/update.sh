@@ -29,6 +29,21 @@ die() { printf '[update] FEHLER: %s\n' "$*" >&2; exit 1; }
 
 deps_hash() { sha256sum "$APP_DIR/pyproject.toml" | cut -d' ' -f1; }
 
+HISTORY_FILE="$APP_DIR/data/deploy-history.jsonl"
+
+# Verlauf fuers Dashboard. Nur echte Deploy-Versuche (nicht jeder "schon
+# aktuell"-Check alle 90s, sonst Log-Spam). Felder sind alle selbst erzeugt
+# (Zeitstempel, feste outcome-Werte, Commit-SHAs) - kein Escaping fuer
+# Freitext noetig, printf reicht.
+log_history() {
+  local outcome="$1" from_commit="$2" to_commit="$3"
+  mkdir -p "$(dirname "$HISTORY_FILE")"
+  printf '{"ts":"%s","outcome":"%s","from":"%s","to":"%s"}\n' \
+    "$(date -Iseconds)" "$outcome" "${from_commit:0:7}" "${to_commit:0:7}" >> "$HISTORY_FILE"
+  # Verlauf klein halten - nur die letzten 50 Eintraege.
+  tail -n 50 "$HISTORY_FILE" > "$HISTORY_FILE.tmp" && mv "$HISTORY_FILE.tmp" "$HISTORY_FILE"
+}
+
 [[ -d "$APP_DIR/.git" ]] || die "$APP_DIR ist kein git-Checkout. Erst deploy/bootstrap-pi.sh ausfuehren."
 [[ -x "$PIP" ]] || die "Kein venv unter $APP_DIR/.venv. Erst deploy/bootstrap-pi.sh ausfuehren."
 
@@ -85,17 +100,20 @@ log "Starte $SERVICE neu ..."
 # bereit gemeldet hat - ein Erfolg hier heisst also wirklich "laeuft".
 if sudo -n systemctl restart "$SERVICE" && systemctl is-active --quiet "$SERVICE"; then
   log "OK - $SERVICE laeuft auf ${target_commit:0:7}."
+  log_history "deployed" "$previous_commit" "$target_commit"
   exit 0
 fi
 
 if [[ "$service_was_active" == "false" ]]; then
   log "$SERVICE lief schon vor dem Update nicht (z.B. fehlender ANTHROPIC_API_KEY) -"
   log "kein Rollback, das ist keine Regression durch dieses Update. Code-Stand ${target_commit:0:7} bleibt."
+  log_history "deployed_service_down" "$previous_commit" "$target_commit"
   exit 0
 fi
 
 log "Neustart fehlgeschlagen (lief vorher einwandfrei). Rollback auf ${previous_commit:0:7} ..."
 log "Falls sudo nach einem Passwort gefragt hat, fehlt /etc/sudoers.d/jarvis-deploy (siehe deploy/bootstrap-pi.sh)."
+log_history "rolled_back" "$previous_commit" "$target_commit"
 git reset --hard "$previous_commit"
 if [[ "$deps_reinstalled" == "true" ]]; then
   "$PIP" install --upgrade -e . || log "WARNUNG: pip-Install beim Rollback fehlgeschlagen."

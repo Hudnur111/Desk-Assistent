@@ -215,6 +215,22 @@ def service_state(unit: str) -> dict:
     }
 
 
+def service_restart_count(unit: str) -> int | None:
+    """Wie oft systemd die Unit wegen Restart= neu gestartet hat.
+
+    Zeigt Crash-Loops an (z.B. jarvis.service ohne ANTHROPIC_API_KEY), die
+    ein reines "aktiv/inaktiv" nicht sichtbar macht.
+    """
+    out = _systemctl("show", unit, "--property=NRestarts")
+    for line in out.splitlines():
+        if line.startswith("NRestarts="):
+            try:
+                return int(line.split("=", 1)[1])
+            except ValueError:
+                return None
+    return None
+
+
 _runner_unit_cache: str | None = None
 
 
@@ -274,6 +290,79 @@ def last_deploy() -> str:
     return datetime.fromtimestamp(ts).strftime("%d.%m.%Y, %H:%M:%S")
 
 
+DEPLOY_HISTORY_FILE = os.path.join(APP_DIR, "data", "deploy-history.jsonl")
+
+
+def read_deploy_history(limit: int = 8) -> list[dict]:
+    """Letzte Eintraege aus dem von update.sh gefuehrten Verlauf.
+
+    JSON-Lines statt journalctl-Parsing: robust gegen Format-Aenderungen an
+    Log-Ausgaben und einfach von update.sh selbst zu schreiben.
+    """
+    try:
+        with open(DEPLOY_HISTORY_FILE, encoding="utf-8") as fh:
+            lines = fh.readlines()
+    except OSError:
+        return []
+    entries = []
+    for line in lines[-limit:]:
+        try:
+            entries.append(json.loads(line))
+        except json.JSONDecodeError:
+            continue
+    entries.reverse()  # neuestes zuerst
+    return entries
+
+
+# --------------------------------------------------------------------------
+# Netzwerk
+# --------------------------------------------------------------------------
+def read_ip() -> str | None:
+    """Lokale IP ueber die Route, die fuer ausgehende Verbindungen genutzt wuerde.
+
+    Der klassische Trick: ein UDP-"Connect" loest keinen Handshake aus und
+    braucht keine echte Erreichbarkeit - es fragt nur die Routing-Tabelle,
+    welche lokale Adresse fuer dieses Ziel verwendet wuerde.
+    """
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.settimeout(1)
+            s.connect(("8.8.8.8", 80))
+            return s.getsockname()[0]
+    except OSError:
+        return None
+
+
+def read_wifi() -> dict | None:
+    """SSID und Signalstaerke der aktiven WLAN-Verbindung (falls per WLAN)."""
+    try:
+        out = subprocess.run(
+            ("iw", "dev", "wlan0", "link"),
+            capture_output=True, text=True, timeout=3, check=False,
+        ).stdout
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if "Not connected" in out or not out.strip():
+        return None
+
+    ssid = None
+    dbm = None
+    for line in out.splitlines():
+        line = line.strip()
+        if line.startswith("SSID:"):
+            ssid = line.split(":", 1)[1].strip()
+        elif line.startswith("signal:"):
+            try:
+                dbm = int(line.split(":", 1)[1].strip().split()[0])
+            except (ValueError, IndexError):
+                pass
+    if ssid is None:
+        return None
+    # Grobe, ueberall gebraeuchliche Naeherung: -50dBm ~ 100%, -100dBm ~ 0%.
+    quality = max(0, min(100, round(2 * (dbm + 100)))) if dbm is not None else None
+    return {"ssid": ssid, "signal_dbm": dbm, "signal_percent": quality}
+
+
 # --------------------------------------------------------------------------
 # Payload
 # --------------------------------------------------------------------------
@@ -295,6 +384,8 @@ def build_status() -> dict:
     else:
         update_mechanism = None
 
+    jarvis_restarts = service_restart_count(SERVICE)
+
     return {
         "hostname": socket.gethostname(),
         "server_time": datetime.now().strftime("%d.%m.%Y, %H:%M:%S"),
@@ -304,14 +395,17 @@ def build_status() -> dict:
         "disk": read_disk(),
         "temperature_c": read_temperature(),
         "uptime_seconds": round(read_uptime()),
+        "ip_address": read_ip(),
+        "wifi": read_wifi(),
         "git": read_git(),
         "update_timer": {
             "active": update_mechanism is not None,
             "mechanism": update_mechanism,
             "last_run": last_deploy(),
         },
+        "deploy_history": read_deploy_history(),
         "services": {
-            "jarvis": jarvis,
+            "jarvis": {**jarvis, "restart_count": jarvis_restarts},
             "poll_timer": poll_timer,
             "runner": runner,
             "status": status_self,
