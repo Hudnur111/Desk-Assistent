@@ -37,6 +37,14 @@ Autonomer, sprach- und UI-gesteuerter Assistent für Raspberry Pi 4B — IT-Cons
 
   Visuell mit echtem (headless) Chromium via Playwright verifiziert - alle vier
   Zustände sowie der Nachrichten-/Tool-Log wurden gerendert und geprüft.
+
+  HUD-Details: rotierender Tick-Ring (Dial-Optik), umlaufender Orbit-Punkt,
+  Ecken-Brackets im Viewport, Boot-Sequenz beim ersten Laden, dezenter
+  Scan-Sweep im Hintergrund, ein "Reticle"-Puls bei jedem Tool-Aufruf, Live-Uhr
+  und eine echte Telemetrie-Anzeige (RSS-Speicher live vom `resource_monitor`
+  über den `UIHub` eingespeist) sowie Zeitstempel im Log. Alles über mehrere
+  Iterationen hinweg per Playwright-Screenshots gegengeprüft, u. a. um zu
+  verifizieren, dass der animierte Orbit-Punkt den Statustext nie überlappt.
 - **Phase 5 (Autonomie):**
   - Persistenter Memory-Layer (`src/jarvis/memory.py`): Gesprächsverlauf wird
     als JSON gespeichert und beim Neustart geladen - Sitzungen bauen aufeinander auf.

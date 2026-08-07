@@ -7,21 +7,42 @@
   <link rel="stylesheet" href="/static/style.css" />
 </head>
 <body data-state="idle">
+  <div class="boot" id="boot">
+    <div class="boot-text">J.A.R.V.I.S.</div>
+    <div class="boot-sub">SYSTEM INITIALISIERUNG</div>
+    <div class="boot-bar"><div class="boot-bar-fill"></div></div>
+  </div>
+
   <div class="scanlines"></div>
+  <div class="sweep"></div>
+
+  <div class="corner corner-tl"></div>
+  <div class="corner corner-tr"></div>
+  <div class="corner corner-bl"></div>
+  <div class="corner corner-br"></div>
 
   <header class="topbar">
-    <span class="brand">J.A.R.V.I.S.</span>
-    <span class="conn" id="conn">verbindet…</span>
+    <span class="brand">J.A.R.V.I.S. <small>MK.I</small></span>
+    <div class="telemetry">
+      <span id="clock">--:--:--</span>
+      <span class="sep">·</span>
+      <span id="stats">RSS —</span>
+    </div>
+    <span class="conn" id="conn"><i class="dot"></i><span id="conn-text">verbindet…</span></span>
   </header>
 
   <main class="stage">
     <div class="core" id="core">
+      <div class="ring ring-ticks"></div>
       <div class="ring ring-outer"></div>
+      <div class="orbit"><div class="orbit-dot"></div></div>
       <div class="ring ring-mid"></div>
       <div class="ring ring-inner"></div>
+      <div class="reticle" id="reticle"></div>
       <div class="bars" id="bars">
         <span></span><span></span><span></span><span></span><span></span>
-        <span></span><span></span><span></span><span></span>
+        <span></span><span></span><span></span><span></span><span></span>
+        <span></span><span></span>
       </div>
     </div>
     <div class="status" id="status">BEREIT</div>

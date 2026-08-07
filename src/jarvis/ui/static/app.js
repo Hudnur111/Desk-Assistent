@@ -8,19 +8,33 @@ const STATUS_LABELS = {
 const body = document.body;
 const statusEl = document.getElementById("status");
 const connEl = document.getElementById("conn");
+const connTextEl = document.getElementById("conn-text");
 const logEl = document.getElementById("log");
 const toolcallEl = document.getElementById("toolcall");
+const reticleEl = document.getElementById("reticle");
+const clockEl = document.getElementById("clock");
+const statsEl = document.getElementById("stats");
+const bootEl = document.getElementById("boot");
 
 let toolcallTimer = null;
+let reticleTimer = null;
 
 function setStatus(state) {
   body.dataset.state = state;
   statusEl.textContent = STATUS_LABELS[state] || state.toUpperCase();
 }
 
+function formatTime(date) {
+  return date.toLocaleTimeString("de-DE", { hour12: false });
+}
+
 function addLogEntry(who, text) {
   const entry = document.createElement("div");
   entry.className = `log-entry ${who}`;
+
+  const timeEl = document.createElement("span");
+  timeEl.className = "time";
+  timeEl.textContent = formatTime(new Date());
 
   const whoEl = document.createElement("span");
   whoEl.className = "who";
@@ -30,7 +44,7 @@ function addLogEntry(who, text) {
   textEl.className = "text";
   textEl.textContent = text;
 
-  entry.append(whoEl, textEl);
+  entry.append(timeEl, whoEl, textEl);
   logEl.appendChild(entry);
   logEl.scrollTop = logEl.scrollHeight;
 }
@@ -40,6 +54,19 @@ function showToolCall(name) {
   toolcallEl.classList.add("show");
   clearTimeout(toolcallTimer);
   toolcallTimer = setTimeout(() => toolcallEl.classList.remove("show"), 2500);
+
+  reticleEl.classList.remove("flash");
+  // Reflow erzwingen, damit die Animation bei wiederholtem Trigger neu startet
+  void reticleEl.offsetWidth;
+  reticleEl.classList.add("flash");
+  clearTimeout(reticleTimer);
+  reticleTimer = setTimeout(() => reticleEl.classList.remove("flash"), 700);
+}
+
+function showResourceStats(payload) {
+  if (typeof payload.rss_mb === "number") {
+    statsEl.textContent = `RSS ${payload.rss_mb.toFixed(1)} MB`;
+  }
 }
 
 function handleEvent(event) {
@@ -58,6 +85,9 @@ function handleEvent(event) {
       showToolCall(payload.name);
       addLogEntry("tool", `${payload.name}(${JSON.stringify(payload.input)})`);
       break;
+    case "resource":
+      showResourceStats(payload);
+      break;
     default:
       console.warn("Unbekanntes Event:", type);
   }
@@ -68,7 +98,7 @@ function connect() {
   const ws = new WebSocket(`${protocol}://${window.location.host}/ws`);
 
   ws.addEventListener("open", () => {
-    connEl.textContent = "verbunden";
+    connTextEl.textContent = "verbunden";
     connEl.className = "conn online";
   });
 
@@ -81,12 +111,20 @@ function connect() {
   });
 
   ws.addEventListener("close", () => {
-    connEl.textContent = "getrennt - erneuter Versuch…";
+    connTextEl.textContent = "getrennt - erneuter Versuch…";
     connEl.className = "conn offline";
     setTimeout(connect, 2000);
   });
 
   ws.addEventListener("error", () => ws.close());
 }
+
+function tickClock() {
+  clockEl.textContent = formatTime(new Date());
+}
+
+tickClock();
+setInterval(tickClock, 1000);
+setTimeout(() => bootEl.remove(), 2200);
 
 connect();

@@ -87,7 +87,7 @@ async def run() -> None:
     queue: "asyncio.Queue[str]" = asyncio.Queue()
     tasks = [
         asyncio.create_task(_read_console_input(queue)),
-        asyncio.create_task(log_resource_usage_periodically()),
+        asyncio.create_task(log_resource_usage_periodically(ui_hub=ui_hub)),
         asyncio.create_task(run_watchdog_heartbeat()),
     ]
     await notify_ready()
