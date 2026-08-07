@@ -1,0 +1,879 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Desk-Assistent — Pi Status</title>
+<style>
+  :root {
+    color-scheme: light;
+    --page:              #f9f9f7;
+    --surface-1:         #fcfcfb;
+    --surface-2:         #f2f1ee;
+    --text-primary:      #0b0b0b;
+    --text-secondary:    #52514e;
+    --muted:             #898781;
+    --gridline:          #e1e0d9;
+    --border:            rgba(11,11,11,0.10);
+    --shadow:            0 1px 2px rgba(11,11,11,0.04), 0 8px 24px -12px rgba(11,11,11,0.10);
+    --accent-blue:       #2a78d6;
+    --accent-blue-track: #cde2fb;
+    --accent-blue-wash:  rgba(42,120,214,0.09);
+    --good:              #0ca30c;
+    --warning:           #fab219;
+    --serious:           #ec835a;
+    --critical:          #d03b3b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      color-scheme: dark;
+      --page:              #0d0d0d;
+      --surface-1:         #1a1a19;
+      --surface-2:         #212120;
+      --text-primary:      #ffffff;
+      --text-secondary:    #c3c2b7;
+      --muted:             #898781;
+      --gridline:          #2c2c2a;
+      --border:            rgba(255,255,255,0.10);
+      --shadow:            0 1px 2px rgba(0,0,0,0.3), 0 8px 24px -12px rgba(0,0,0,0.5);
+      --accent-blue:       #3987e5;
+      --accent-blue-track: #0d366b;
+      --accent-blue-wash:  rgba(57,135,229,0.14);
+      --good:              #0ca30c;
+      --warning:           #fab219;
+      --serious:           #ec835a;
+      --critical:          #d03b3b;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --page:              #0d0d0d;
+    --surface-1:         #1a1a19;
+    --surface-2:         #212120;
+    --text-primary:      #ffffff;
+    --text-secondary:    #c3c2b7;
+    --muted:             #898781;
+    --gridline:          #2c2c2a;
+    --border:            rgba(255,255,255,0.10);
+    --shadow:            0 1px 2px rgba(0,0,0,0.3), 0 8px 24px -12px rgba(0,0,0,0.5);
+    --accent-blue:       #3987e5;
+    --accent-blue-track: #0d366b;
+    --accent-blue-wash:  rgba(57,135,229,0.14);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    padding: 32px 20px 60px;
+    background: var(--page);
+    color: var(--text-primary);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 920px; margin: 0 auto; }
+  svg.icon { width: 16px; height: 16px; flex: none; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 28px;
+  }
+  .brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+  .brand-mark {
+    width: 40px; height: 40px; border-radius: 10px;
+    background: var(--accent-blue-wash);
+    display: flex; align-items: center; justify-content: center;
+    flex: none;
+  }
+  .brand-mark svg { width: 22px; height: 22px; stroke: var(--accent-blue); }
+  .brand-text h1 { font-size: 17px; font-weight: 650; margin: 0; letter-spacing: -0.01em; }
+  .brand-text .sub { font-size: 12.5px; color: var(--muted); font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+
+  .header-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+  .icon-btn {
+    width: 34px; height: 34px; border-radius: 9px;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--surface-1); border: 1px solid var(--border);
+    color: var(--text-secondary); cursor: pointer;
+  }
+  .icon-btn:hover { color: var(--text-primary); border-color: var(--text-secondary); }
+  .icon-btn svg { width: 17px; height: 17px; }
+  .icon-btn:disabled { opacity: 0.6; cursor: default; }
+  .icon-btn.spinning svg { animation: spin 0.7s linear infinite; color: var(--accent-blue); }
+  @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+  .pill {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 7px 12px 7px 10px; border-radius: 999px;
+    font-size: 12.5px; font-weight: 600;
+    border: 1px solid var(--border); background: var(--surface-1); color: var(--text-primary);
+    white-space: nowrap;
+  }
+  .dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+  .dot.good { background: var(--good); box-shadow: 0 0 0 3px color-mix(in srgb, var(--good) 22%, transparent); }
+  .dot.warning { background: var(--warning); box-shadow: 0 0 0 3px color-mix(in srgb, var(--warning) 22%, transparent); }
+  .dot.critical { background: var(--critical); box-shadow: 0 0 0 3px color-mix(in srgb, var(--critical) 22%, transparent); }
+  /* Unbekannt != aus. Wenn der Pi nicht antwortet, wissen wir ueber die
+     Dienste nichts - dann grau, nicht rot. */
+  .dot.unknown { background: var(--muted); box-shadow: 0 0 0 3px color-mix(in srgb, var(--muted) 22%, transparent); }
+  .dot.pulse { animation: pulse 1.7s ease-in-out infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .4; } }
+
+  .settings {
+    max-height: 0; overflow: hidden; opacity: 0;
+    transition: max-height 0.25s ease, opacity 0.2s ease, margin 0.25s ease;
+    margin-bottom: 0;
+  }
+  .settings.open { max-height: 100px; opacity: 1; margin-bottom: 20px; }
+  .settings-inner {
+    display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px;
+    padding: 12px 14px;
+  }
+  .settings-inner label { font-size: 12px; color: var(--muted); }
+  .settings input {
+    background: var(--surface-2); border: 1px solid var(--border); color: var(--text-primary);
+    border-radius: 7px; padding: 7px 9px; font-size: 13px; font-family: inherit;
+  }
+  #host-input { width: 190px; }
+  #port-input { width: 64px; }
+  .settings button {
+    background: var(--accent-blue); color: #fff; border: none; border-radius: 7px;
+    padding: 8px 14px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit;
+  }
+  .settings button:hover { filter: brightness(1.08); }
+  .settings .updated { font-size: 12px; color: var(--muted); margin-left: auto; }
+  .settings .hint { font-size: 11.5px; color: var(--muted); width: 100%; }
+
+  .offline-banner {
+    display: none; align-items: center; gap: 10px;
+    background: color-mix(in srgb, var(--critical) 10%, var(--surface-1));
+    border: 1px solid color-mix(in srgb, var(--critical) 45%, var(--border));
+    color: var(--critical); border-radius: 12px; padding: 12px 16px;
+    font-size: 13px; font-weight: 600; margin-bottom: 20px;
+  }
+  .offline-banner.show { display: flex; }
+  .offline-banner svg { width: 17px; height: 17px; stroke: var(--critical); flex: none; }
+
+  /* ---------- Steuerung ---------- */
+  .control-card {
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 14px;
+    box-shadow: var(--shadow); padding: 14px 18px 16px; margin-bottom: 12px;
+  }
+  .control-head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+  .control-head h2 {
+    font-size: 11.5px; font-weight: 700; color: var(--muted); margin: 0;
+    text-transform: uppercase; letter-spacing: 0.06em;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .control-warning {
+    font-size: 11px; font-weight: 600; color: var(--warning);
+    display: flex; align-items: center; gap: 5px;
+  }
+  .control-warning svg { stroke: var(--warning); width: 13px; height: 13px; }
+  .control-buttons { display: flex; gap: 10px; flex-wrap: wrap; }
+  .control-btn {
+    flex: 1; min-width: 110px;
+    display: flex; align-items: center; justify-content: center; gap: 7px;
+    padding: 10px 14px; border-radius: 10px; border: 1px solid var(--border);
+    font-size: 13.5px; font-weight: 650; font-family: inherit; cursor: pointer;
+    background: var(--surface-2); color: var(--text-primary);
+    transition: filter 0.15s ease;
+  }
+  .control-btn:hover { filter: brightness(0.95); }
+  .control-btn:disabled { opacity: 0.5; cursor: default; filter: none; }
+  .control-btn.on { background: color-mix(in srgb, var(--good) 14%, var(--surface-2)); color: var(--good); border-color: color-mix(in srgb, var(--good) 35%, var(--border)); }
+  .control-btn.sleep { background: color-mix(in srgb, var(--warning) 14%, var(--surface-2)); color: color-mix(in srgb, var(--warning) 70%, black); border-color: color-mix(in srgb, var(--warning) 35%, var(--border)); }
+  .control-btn.off { background: color-mix(in srgb, var(--critical) 14%, var(--surface-2)); color: var(--critical); border-color: color-mix(in srgb, var(--critical) 35%, var(--border)); }
+  .control-btn.active-state { outline: 2px solid currentColor; outline-offset: 2px; }
+  .control-feedback { font-size: 12.5px; color: var(--muted); margin-top: 10px; min-height: 1.2em; }
+  .control-feedback.error { color: var(--critical); font-weight: 600; }
+  .control-feedback.ok { color: var(--good); font-weight: 600; }
+
+  .gauge-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+  .gauge-card {
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 14px;
+    box-shadow: var(--shadow);
+    padding: 16px 12px 14px;
+    display: flex; flex-direction: column; align-items: center; gap: 10px;
+  }
+  .gauge-head {
+    width: 100%; display: flex; align-items: center; justify-content: space-between;
+    font-size: 12px; font-weight: 600; color: var(--text-secondary);
+  }
+  .gauge-head .ic { display: flex; align-items: center; gap: 6px; color: var(--text-secondary); }
+  .gauge-svg-wrap { position: relative; width: 92px; height: 92px; }
+  .gauge-svg-wrap svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+  .gauge-track { fill: none; stroke: var(--accent-blue-track); stroke-width: 8; }
+  .gauge-fill {
+    fill: none; stroke: var(--accent-blue); stroke-width: 8; stroke-linecap: round;
+    transition: stroke-dashoffset 0.5s ease, stroke 0.4s ease;
+  }
+  .gauge-fill.warning { stroke: var(--warning); }
+  .gauge-fill.critical { stroke: var(--critical); }
+  .gauge-value {
+    position: absolute; inset: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+  }
+  .gauge-value .num { font-size: 20px; font-weight: 650; line-height: 1; }
+  .gauge-value .unit { font-size: 10px; color: var(--muted); margin-top: 2px; }
+  .status-tag { font-size: 11px; font-weight: 600; display: flex; align-items: center; gap: 5px; color: var(--text-secondary); }
+
+  .trend-card {
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 14px;
+    box-shadow: var(--shadow); padding: 16px 18px 10px; margin-bottom: 12px;
+  }
+  .trend-grid-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+  .trend-grid-2col .trend-card { margin-bottom: 0; }
+  @media (max-width: 720px) { .trend-grid-2col { grid-template-columns: 1fr; } }
+  .trend-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  .trend-head .title { font-size: 12.5px; font-weight: 600; color: var(--text-secondary); display: flex; align-items: center; gap: 7px; }
+  .trend-head .now { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  svg.trend { width: 100%; height: 72px; display: block; overflow: visible; }
+  .trend-grid-line { stroke: var(--gridline); stroke-width: 1; }
+  .trend-fill { fill: var(--accent-blue); opacity: 0.10; }
+  .trend-line { fill: none; stroke: var(--accent-blue); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  /* RAM-Verlauf in Gruen statt Blau - auf einen Blick vom CPU-Chart zu unterscheiden. */
+  .trend-fill.mem { fill: var(--good); }
+  .trend-line.mem { stroke: var(--good); }
+
+  .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+  .card {
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 14px;
+    box-shadow: var(--shadow); padding: 16px 18px; margin-bottom: 0;
+  }
+  .card h2 {
+    font-size: 11.5px; font-weight: 700; color: var(--muted); margin: 0 0 10px 0;
+    text-transform: uppercase; letter-spacing: 0.06em;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 8px 0; font-size: 13.5px; border-bottom: 1px solid var(--gridline);
+  }
+  .row:last-child { border-bottom: none; padding-bottom: 2px; }
+  .row .k { color: var(--text-secondary); display: flex; align-items: center; gap: 7px; }
+  .row .v { font-weight: 600; text-align: right; }
+  .row .v.mono { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 12.5px; font-weight: 500; background: var(--surface-2); padding: 2px 7px; border-radius: 5px; }
+
+  /* ---------- Update-Verlauf ---------- */
+  .history-card { margin-bottom: 12px; }
+  .history-empty { font-size: 13px; color: var(--muted); padding: 6px 0; }
+  .history-list { display: flex; flex-direction: column; }
+  .history-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 0; font-size: 13px; border-bottom: 1px solid var(--gridline);
+  }
+  .history-item:last-child { border-bottom: none; padding-bottom: 2px; }
+  .history-item .time { color: var(--muted); font-size: 12px; width: 118px; flex: none; font-variant-numeric: tabular-nums; }
+  .history-item .desc { flex: 1; color: var(--text-secondary); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .history-item .desc code {
+    font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 11.5px;
+    background: var(--surface-2); padding: 1px 6px; border-radius: 4px; color: var(--text-primary);
+  }
+  .history-item .outcome { font-size: 11.5px; font-weight: 700; padding: 2px 8px; border-radius: 999px; flex: none; }
+  .history-item .outcome.deployed { background: color-mix(in srgb, var(--good) 16%, transparent); color: var(--good); }
+  .history-item .outcome.deployed_service_down { background: color-mix(in srgb, var(--warning) 18%, transparent); color: color-mix(in srgb, var(--warning) 70%, black); }
+  .history-item .outcome.rolled_back { background: color-mix(in srgb, var(--critical) 14%, transparent); color: var(--critical); }
+
+  /* ---------- Dokumentations-Karte ---------- */
+  .docs-card {
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 14px;
+    box-shadow: var(--shadow); padding: 18px 20px 6px;
+  }
+  .docs-card h2 {
+    font-size: 11.5px; font-weight: 700; color: var(--muted); margin: 0 0 14px 0;
+    text-transform: uppercase; letter-spacing: 0.06em;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .docs-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px 28px; }
+  .docs-item { padding-bottom: 14px; }
+  .docs-item .t { font-size: 13px; font-weight: 650; margin-bottom: 3px; display: flex; align-items: center; gap: 7px; }
+  .docs-item .t svg { color: var(--accent-blue); width: 15px; height: 15px; flex: none; }
+  .docs-item .d { font-size: 12.5px; color: var(--text-secondary); line-height: 1.5; }
+  .docs-item .d code {
+    font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 11.5px;
+    background: var(--surface-2); padding: 1px 5px; border-radius: 4px;
+  }
+  @media (max-width: 720px) { .docs-grid { grid-template-columns: 1fr; } }
+
+  footer { text-align: center; color: var(--muted); font-size: 11px; margin-top: 26px; }
+
+  @media (max-width: 720px) {
+    .gauge-grid { grid-template-columns: repeat(2, 1fr); }
+    .info-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="brand">
+      <div class="brand-mark">
+        <svg class="icon" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"></rect><path d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3"></path></svg>
+      </div>
+      <div class="brand-text">
+        <h1 id="hostname">Pi Status</h1>
+        <div class="sub" id="ip-label">–</div>
+      </div>
+    </div>
+    <div class="header-actions">
+      <span class="pill" id="jarvis-pill" title="Zustand von jarvis.service auf dem Pi">
+        <span class="dot unknown" id="jarvis-dot"></span>
+        <span id="jarvis-text">Jarvis …</span>
+      </span>
+      <span class="pill" id="conn-pill" title="Erreichbarkeit des Status-Endpunkts">
+        <span class="dot pulse" id="conn-dot"></span>
+        <span id="conn-text">Verbinde…</span>
+      </span>
+      <button class="icon-btn" id="refresh-btn" title="Jetzt aktualisieren">
+        <svg class="icon" id="refresh-icon" viewBox="0 0 24 24"><path d="M23 4v6h-6M1 20v-6h6"></path><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+      </button>
+      <button class="icon-btn" id="theme-btn" title="Design wechseln">
+        <svg class="icon" id="theme-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"></path></svg>
+      </button>
+      <button class="icon-btn" id="settings-btn" title="Einstellungen">
+        <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+      </button>
+    </div>
+  </header>
+
+  <div class="settings" id="settings-panel">
+    <div class="settings-inner">
+      <label>Adresse</label>
+      <input type="text" id="host-input" placeholder="leer = dieser Server" />
+      <label>Port</label>
+      <input type="text" id="port-input" placeholder="leer = dieser Server" />
+      <button id="save-btn">Speichern</button>
+      <span class="updated" id="last-updated"></span>
+      <span class="hint">Leer lassen, um den Status von genau dem Server abzufragen, von dem diese Seite geladen wurde (Normalfall, da das Dashboard direkt auf dem Pi laeuft). Nur ausfuellen, um einen anderen Pi im Netz abzufragen.</span>
+    </div>
+  </div>
+
+  <div class="offline-banner" id="offline-banner">
+    <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 1l22 22M16.72 11.06A10.94 10.94 0 0 1 19 12.55M5 12.55a10.94 10.94 0 0 1 5.17-2.39M10.71 5.05A16 16 0 0 1 22.58 9M1.42 9a15.91 15.91 0 0 1 4.7-2.88M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01"></path></svg>
+      Keine Verbindung zum Pi. Ist er eingeschaltet und im Netzwerk?
+  </div>
+
+  <div class="control-card">
+    <div class="control-head">
+      <h2><svg class="icon" viewBox="0 0 24 24" style="width:13px;height:13px"><path d="M18.36 6.64a9 9 0 1 1-12.73 0M12 2v10"></path></svg>Steuerung</h2>
+      <span class="control-warning" title="Diese Knoepfe sind nicht durch ein Passwort geschuetzt - jeder im selben Netzwerk kann sie benutzen.">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M12 9v4M12 17h.01"></path><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L14.71 3.86a2 2 0 0 0-3.42 0z"></path></svg>
+        ungeschützt im Netzwerk
+      </span>
+    </div>
+    <div class="control-buttons">
+      <button class="control-btn on" id="btn-start">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M5 3l14 9-14 9V3z"></path></svg>
+        An
+      </button>
+      <button class="control-btn sleep" id="btn-stop">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+        Ruhemodus
+      </button>
+      <button class="control-btn off" id="btn-shutdown">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M18.36 6.64a9 9 0 1 1-12.73 0M12 2v10"></path></svg>
+        Aus
+      </button>
+    </div>
+    <div class="control-feedback" id="control-feedback"></div>
+  </div>
+
+  <div class="gauge-grid">
+    <div class="gauge-card">
+      <div class="gauge-head">
+        <span class="ic"><svg class="icon" viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="10" rx="1"></rect><path d="M9 1v3M15 1v3M9 20v3M15 20v3M1 9h3M1 15h3M20 9h3M20 15h3"></path></svg>CPU</span>
+        <span class="status-tag" id="cpu-status"></span>
+      </div>
+      <div class="gauge-svg-wrap">
+        <svg viewBox="0 0 96 96"><circle class="gauge-track" cx="48" cy="48" r="38"></circle><circle class="gauge-fill" id="cpu-ring" cx="48" cy="48" r="38"></circle></svg>
+        <div class="gauge-value"><span class="num" id="cpu-val">–</span><span class="unit">Prozent</span></div>
+      </div>
+    </div>
+    <div class="gauge-card">
+      <div class="gauge-head">
+        <span class="ic"><svg class="icon" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M7 8v8M11 8v8M15 8v8"></path></svg>RAM</span>
+        <span class="status-tag" id="mem-status"></span>
+      </div>
+      <div class="gauge-svg-wrap">
+        <svg viewBox="0 0 96 96"><circle class="gauge-track" cx="48" cy="48" r="38"></circle><circle class="gauge-fill" id="mem-ring" cx="48" cy="48" r="38"></circle></svg>
+        <div class="gauge-value"><span class="num" id="mem-val">–</span><span class="unit">Prozent</span></div>
+      </div>
+    </div>
+    <div class="gauge-card">
+      <div class="gauge-head">
+        <span class="ic"><svg class="icon" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M3 5v14a9 3 0 0 0 18 0V5"></path><path d="M3 12a9 3 0 0 0 18 0"></path></svg>Speicher</span>
+        <span class="status-tag" id="disk-status"></span>
+      </div>
+      <div class="gauge-svg-wrap">
+        <svg viewBox="0 0 96 96"><circle class="gauge-track" cx="48" cy="48" r="38"></circle><circle class="gauge-fill" id="disk-ring" cx="48" cy="48" r="38"></circle></svg>
+        <div class="gauge-value"><span class="num" id="disk-val">–</span><span class="unit">Prozent</span></div>
+      </div>
+    </div>
+    <div class="gauge-card">
+      <div class="gauge-head">
+        <span class="ic"><svg class="icon" viewBox="0 0 24 24"><path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"></path></svg>Temp.</span>
+        <span class="status-tag" id="temp-status"></span>
+      </div>
+      <div class="gauge-svg-wrap">
+        <svg viewBox="0 0 96 96"><circle class="gauge-track" cx="48" cy="48" r="38"></circle><circle class="gauge-fill" id="temp-ring" cx="48" cy="48" r="38"></circle></svg>
+        <div class="gauge-value"><span class="num" id="temp-val">–</span><span class="unit">°C</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="trend-grid-2col">
+    <div class="trend-card">
+      <div class="trend-head">
+        <span class="title">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M3 3v18h18"></path><path d="M18.7 8L13 13.7l-4-4L3.7 15.3"></path></svg>
+          CPU-Verlauf
+        </span>
+        <span class="now" id="trend-now">–</span>
+      </div>
+      <svg class="trend" viewBox="0 0 600 72" preserveAspectRatio="none">
+        <line class="trend-grid-line" x1="0" y1="1" x2="600" y2="1"></line>
+        <line class="trend-grid-line" x1="0" y1="36" x2="600" y2="36"></line>
+        <line class="trend-grid-line" x1="0" y1="71" x2="600" y2="71"></line>
+        <polygon class="trend-fill" id="spark-fill" points=""></polygon>
+        <polyline class="trend-line" id="spark-line" points=""></polyline>
+      </svg>
+    </div>
+    <div class="trend-card">
+      <div class="trend-head">
+        <span class="title">
+          <svg class="icon" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M7 8v8M11 8v8M15 8v8"></path></svg>
+          RAM-Verlauf
+        </span>
+        <span class="now" id="trend-mem-now">–</span>
+      </div>
+      <svg class="trend" viewBox="0 0 600 72" preserveAspectRatio="none">
+        <line class="trend-grid-line" x1="0" y1="1" x2="600" y2="1"></line>
+        <line class="trend-grid-line" x1="0" y1="36" x2="600" y2="36"></line>
+        <line class="trend-grid-line" x1="0" y1="71" x2="600" y2="71"></line>
+        <polygon class="trend-fill mem" id="spark-mem-fill" points=""></polygon>
+        <polyline class="trend-line mem" id="spark-mem-line" points=""></polyline>
+      </svg>
+    </div>
+  </div>
+
+  <div class="info-grid">
+    <div class="card">
+      <h2><svg class="icon" viewBox="0 0 24 24" style="width:13px;height:13px"><circle cx="12" cy="12" r="10"></circle><path d="M12 6v6l4 2"></path></svg>System</h2>
+      <div class="row"><span class="k">Uptime</span><span class="v" id="uptime-val">–</span></div>
+      <div class="row"><span class="k">Arbeitsspeicher</span><span class="v" id="mem-detail">–</span></div>
+      <div class="row"><span class="k">Speicherplatz</span><span class="v" id="disk-detail">–</span></div>
+      <div class="row"><span class="k">CPU-Kerne</span><span class="v" id="cores-val">–</span></div>
+      <div class="row"><span class="k">IP-Adresse</span><span class="v mono" id="ip-val">–</span></div>
+      <div class="row"><span class="k">WLAN</span><span class="v" id="wifi-val">–</span></div>
+      <div class="row"><span class="k">Jarvis-Dienst</span><span class="v" id="jarvis-detail">–</span></div>
+      <div class="row"><span class="k">Jarvis-Neustarts</span><span class="v" id="restart-val">–</span></div>
+    </div>
+
+    <div class="card">
+      <h2><svg class="icon" viewBox="0 0 24 24" style="width:13px;height:13px"><path d="M23 4v6h-6M1 20v-6h6"></path><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>Auto-Update</h2>
+      <div class="row">
+        <span class="k">Update-Timer</span>
+        <span class="v"><span class="pill" id="timer-pill" style="padding:5px 10px 5px 8px;"><span class="dot unknown" id="timer-dot"></span><span id="timer-text">–</span></span></span>
+      </div>
+      <div class="row"><span class="k">Letztes Update</span><span class="v" id="timer-lastrun">–</span></div>
+      <div class="row"><span class="k">Commit</span><span class="v mono" id="git-commit">–</span></div>
+      <div class="row"><span class="k">Nachricht</span><span class="v" id="git-message">–</span></div>
+    </div>
+  </div>
+
+  <div class="card history-card">
+    <h2><svg class="icon" viewBox="0 0 24 24" style="width:13px;height:13px"><path d="M3 3v5h5"></path><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"></path><path d="M12 7v5l4 2"></path></svg>Update-Verlauf</h2>
+    <div id="history-list" class="history-list">
+      <div class="history-empty" id="history-empty">Noch keine Update-Versuche aufgezeichnet.</div>
+    </div>
+  </div>
+
+  <div class="docs-card">
+    <h2><svg class="icon" viewBox="0 0 24 24" style="width:13px;height:13px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"></path></svg>Über dieses System</h2>
+    <div class="docs-grid">
+      <div class="docs-item">
+        <div class="t"><svg class="icon" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="10" rx="2"></rect><circle cx="12" cy="5" r="2"></circle><path d="M12 7v4M8 16h.01M16 16h.01"></path></svg>Jarvis Desk-Assistant</div>
+        <div class="d">Autonomer Assistent auf Basis der Anthropic-API. Laeuft als <code>jarvis.service</code> (systemd), startet automatisch bei Boot und nach Abstuerzen neu (<code>Restart=always</code>).</div>
+      </div>
+      <div class="docs-item">
+        <div class="t"><svg class="icon" viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 10 10"></path><path d="M12 12l6-6"></path></svg>Dieses Dashboard</div>
+        <div class="d">Wird direkt vom Pi ueber <code>jarvis-status.service</code> ausgeliefert (Port 8090) - erreichbar von jedem Geraet im selben Netz, ohne dass ein anderer Rechner laufen muss. Aktualisiert sich alle 3 Sekunden selbst.</div>
+      </div>
+      <div class="docs-item">
+        <div class="t"><svg class="icon" viewBox="0 0 24 24"><path d="M23 4v6h-6M1 20v-6h6"></path><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>Auto-Update</div>
+        <div class="d"><code>jarvis-update.timer</code> prueft alle 90s per <code>git fetch</code> auf neue Commits (oeffentliches Repo, kein Token noetig) und deployt automatisch. Schlaegt der Neustart fehl, rollt das Update selbststaendig auf den letzten funktionierenden Commit zurueck.</div>
+      </div>
+      <div class="docs-item">
+        <div class="t"><svg class="icon" viewBox="0 0 24 24"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"></path><circle cx="12" cy="12" r="4"></circle></svg>Gehaeuse-Luefter</div>
+        <div class="d">Fest an 5V/GND angeschlossen (nicht GPIO-geschaltet) - laeuft dauerhaft mit voller Drehzahl, sobald der Pi Strom hat. Keine Software-Steuerung noetig.</div>
+      </div>
+      <div class="docs-item">
+        <div class="t"><svg class="icon" viewBox="0 0 24 24"><path d="M18.36 6.64a9 9 0 1 1-12.73 0M12 2v10"></path></svg>Steuerung (An / Ruhemodus / Aus)</div>
+        <div class="d"><b>An</b> startet <code>jarvis.service</code>, <b>Ruhemodus</b> stoppt nur den Assistenten (Pi und Dashboard bleiben erreichbar), <b>Aus</b> fährt den ganzen Pi herunter - danach nur noch per physischem Stromstecker wieder einschaltbar. Diese Knöpfe sind bewusst <b>nicht durch ein Passwort geschützt</b>: jedes Gerät im selben Netzwerk kann sie auslösen. Jede Aktion wird protokolliert (<code>data/control-history.jsonl</code>).</div>
+      </div>
+    </div>
+  </div>
+
+  <footer>Aktualisiert automatisch alle 3 Sekunden · Desk-Assistent Pi Dashboard</footer>
+</div>
+
+<script>
+// Leer = relativ zur eigenen Origin. Das Dashboard wird direkt vom Pi
+// ausgeliefert, also ist "die eigene Origin" i.d.R. schon der richtige Pi -
+// kein manuelles Eintragen von Host/Port noetig, anders als bei einer
+// separat (z.B. vom Windows-PC) gehosteten Kopie dieser Seite.
+const DEFAULTS = { host: "", port: "" };
+const HISTORY_LEN = 40;
+const RADIUS = 38;
+const CIRC = 2 * Math.PI * RADIUS;
+let cpuHistory = [];
+let memHistory = [];
+let controlActionInFlight = false;
+
+function loadConfig() {
+  return {
+    host: localStorage.getItem("pi_host") ?? DEFAULTS.host,
+    port: localStorage.getItem("pi_port") ?? DEFAULTS.port,
+  };
+}
+function saveConfig(host, port) {
+  localStorage.setItem("pi_host", host);
+  localStorage.setItem("pi_port", port);
+}
+
+function statusForPercent(pct) {
+  if (pct >= 90) return "critical";
+  if (pct >= 75) return "warning";
+  return "good";
+}
+function statusForTemp(t) {
+  if (t >= 80) return "critical";
+  if (t >= 65) return "warning";
+  return "good";
+}
+const STATUS_LABEL = { good: "Normal", warning: "Erhöht", critical: "Kritisch" };
+
+function setGauge(ringEl, pct, level) {
+  const offset = CIRC * (1 - Math.min(pct, 100) / 100);
+  ringEl.style.strokeDasharray = CIRC.toFixed(1);
+  ringEl.style.strokeDashoffset = offset.toFixed(1);
+  ringEl.classList.remove("warning", "critical");
+  if (level === "warning") ringEl.classList.add("warning");
+  if (level === "critical") ringEl.classList.add("critical");
+}
+function setStatusTag(el, level) {
+  el.innerHTML = '<span class="dot ' + level + '"></span>' + STATUS_LABEL[level];
+}
+
+function formatUptime(seconds) {
+  const d = Math.floor(seconds / 86400);
+  const h = Math.floor((seconds % 86400) / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  let parts = [];
+  if (d > 0) parts.push(d + "d");
+  if (h > 0) parts.push(h + "h");
+  parts.push(m + "min");
+  return parts.join(" ");
+}
+
+function renderSparkline(history, val, lineId, fillId, nowId) {
+  history.push(val);
+  if (history.length > HISTORY_LEN) history.shift();
+  const w = 600, h = 72, max = 100;
+  const step = w / Math.max(history.length - 1, 1);
+  const pts = history.map((v, i) => {
+    const x = i * step;
+    const y = h - (v / max) * h;
+    return x.toFixed(1) + "," + y.toFixed(1);
+  });
+  document.getElementById(lineId).setAttribute("points", pts.join(" "));
+  const lastX = (history.length - 1) * step;
+  document.getElementById(fillId).setAttribute("points", ["0," + h, ...pts, lastX + "," + h].join(" "));
+  document.getElementById(nowId).textContent = val.toFixed(1) + "% aktuell";
+}
+function updateSparkline(val) {
+  renderSparkline(cpuHistory, val, "spark-line", "spark-fill", "trend-now");
+}
+function updateMemSparkline(val) {
+  renderSparkline(memHistory, val, "spark-mem-line", "spark-mem-fill", "trend-mem-now");
+}
+
+function setConnected(ok) {
+  const dot = document.getElementById("conn-dot");
+  const text = document.getElementById("conn-text");
+  const banner = document.getElementById("offline-banner");
+  if (ok) {
+    dot.className = "dot good";
+    text.textContent = "Online";
+    banner.classList.remove("show");
+  } else {
+    dot.className = "dot critical pulse";
+    text.textContent = "Offline";
+    banner.classList.add("show");
+    // Ohne Antwort vom Pi wissen wir ueber die Dienste nichts. "Unbekannt"
+    // statt "gestoppt" - sonst behauptet das Dashboard etwas, was es nicht
+    // geprueft hat.
+    document.getElementById("jarvis-dot").className = "dot unknown";
+    document.getElementById("jarvis-text").textContent = "Jarvis ?";
+    document.getElementById("jarvis-detail").textContent = "unbekannt (Pi nicht erreichbar)";
+    document.getElementById("timer-dot").className = "dot unknown";
+    document.getElementById("timer-text").textContent = "?";
+    document.getElementById("ip-val").textContent = "–";
+    document.getElementById("wifi-val").textContent = "–";
+    document.getElementById("restart-val").textContent = "–";
+    if (!controlActionInFlight) {
+      document.querySelectorAll(".control-btn").forEach(b => b.disabled = true);
+    }
+  }
+}
+
+async function poll() {
+  const { host, port } = loadConfig();
+  const useRelative = !host || !port;
+  const url = useRelative ? "status" : ("http://" + host + ":" + port + "/status");
+  document.getElementById("ip-label").textContent = useRelative
+    ? (location.host || "lokal")
+    : (host + ":" + port);
+  try {
+    const res = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(4000) });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const d = await res.json();
+    setConnected(true);
+    render(d);
+  } catch (e) {
+    setConnected(false);
+  }
+}
+
+function controlBaseUrl() {
+  const { host, port } = loadConfig();
+  return (!host || !port) ? "" : ("http://" + host + ":" + port);
+}
+
+const CONTROL_CONFIRM = {
+  start: null,
+  stop: "Jarvis wirklich pausieren (Ruhemodus)? Der Pi und das Dashboard bleiben erreichbar, nur der Assistent stoppt.",
+  shutdown: "Den Pi wirklich komplett herunterfahren? Er laesst sich danach NICHT ferngesteuert wieder einschalten - dafuer brauchst du physischen Zugriff (Stecker/Steckdose).",
+};
+
+async function sendControl(action, btn) {
+  if (CONTROL_CONFIRM[action] && !confirm(CONTROL_CONFIRM[action])) return;
+
+  const feedback = document.getElementById("control-feedback");
+  controlActionInFlight = true;
+  document.querySelectorAll(".control-btn").forEach(b => b.disabled = true);
+  feedback.className = "control-feedback";
+  feedback.textContent = "Sende Befehl …";
+
+  try {
+    const res = await fetch(controlBaseUrl() + "/control/" + action, {
+      method: "POST", signal: AbortSignal.timeout(10000),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && data.ok) {
+      feedback.className = "control-feedback ok";
+      feedback.textContent = action === "shutdown"
+        ? "Shutdown ausgeloest - der Pi faehrt jetzt herunter."
+        : "Erledigt.";
+    } else {
+      feedback.className = "control-feedback error";
+      feedback.textContent = "Fehlgeschlagen: " + (data.message || res.status);
+    }
+  } catch (e) {
+    feedback.className = "control-feedback error";
+    feedback.textContent = "Keine Antwort vom Pi - Befehl evtl. trotzdem angekommen.";
+  } finally {
+    controlActionInFlight = false;
+    // Kein direktes Wieder-Enablen hier - der naechste poll()-Zyklus (alle
+    // 3s) setzt den Button-Zustand passend zum tatsaechlichen Jarvis-Status.
+    setTimeout(poll, 500);
+  }
+}
+
+document.getElementById("btn-start").addEventListener("click", (e) => sendControl("start", e.currentTarget));
+document.getElementById("btn-stop").addEventListener("click", (e) => sendControl("stop", e.currentTarget));
+document.getElementById("btn-shutdown").addEventListener("click", (e) => sendControl("shutdown", e.currentTarget));
+
+function render(d) {
+  document.getElementById("hostname").textContent = d.hostname || "Pi Status";
+  document.getElementById("last-updated").textContent = "Aktualisiert: " + new Date().toLocaleTimeString("de-DE");
+
+  const cpu = d.cpu_percent ?? 0;
+  const cpuLevel = statusForPercent(cpu);
+  document.getElementById("cpu-val").textContent = cpu.toFixed(0);
+  setGauge(document.getElementById("cpu-ring"), cpu, cpuLevel);
+  setStatusTag(document.getElementById("cpu-status"), cpuLevel);
+  updateSparkline(cpu);
+
+  const mem = d.memory || {};
+  const memLevel = statusForPercent(mem.percent ?? 0);
+  document.getElementById("mem-val").textContent = (mem.percent ?? 0).toFixed(0);
+  setGauge(document.getElementById("mem-ring"), mem.percent ?? 0, memLevel);
+  setStatusTag(document.getElementById("mem-status"), memLevel);
+  document.getElementById("mem-detail").textContent = (mem.used_mb ?? "–") + " / " + (mem.total_mb ?? "–") + " MB";
+  updateMemSparkline(mem.percent ?? 0);
+
+  const disk = d.disk || {};
+  const diskLevel = statusForPercent(disk.percent ?? 0);
+  document.getElementById("disk-val").textContent = (disk.percent ?? 0).toFixed(0);
+  setGauge(document.getElementById("disk-ring"), disk.percent ?? 0, diskLevel);
+  setStatusTag(document.getElementById("disk-status"), diskLevel);
+  document.getElementById("disk-detail").textContent = (disk.used_gb ?? "–") + " / " + (disk.total_gb ?? "–") + " GB";
+
+  const temp = d.temperature_c ?? 0;
+  const tempLevel = statusForTemp(temp);
+  document.getElementById("temp-val").textContent = temp.toFixed(0);
+  setGauge(document.getElementById("temp-ring"), (temp / 100) * 100, tempLevel);
+  setStatusTag(document.getElementById("temp-status"), tempLevel);
+
+  document.getElementById("uptime-val").textContent = formatUptime(d.uptime_seconds ?? 0);
+  document.getElementById("cores-val").textContent = d.cpu_cores ?? "–";
+  document.getElementById("ip-val").textContent = d.ip_address || "–";
+
+  const wifi = d.wifi;
+  document.getElementById("wifi-val").textContent = wifi
+    ? wifi.ssid + (wifi.signal_percent != null ? " · " + wifi.signal_percent + "%" : "")
+    : "kabelgebunden / unbekannt";
+
+  // Laeuft der Assistent selbst? Das ist die eigentliche "ist es an"-Frage -
+  // die Verbindungs-Pille sagt nur, dass der Pi antwortet.
+  const services = d.services || {};
+  const jarvis = services.jarvis || {};
+  const jDot = document.getElementById("jarvis-dot");
+  const jText = document.getElementById("jarvis-text");
+  if (jarvis.active) {
+    jDot.className = "dot good";
+    jText.textContent = "Jarvis läuft";
+  } else if (jarvis.state === "nicht installiert") {
+    jDot.className = "dot warning";
+    jText.textContent = "Jarvis fehlt";
+  } else {
+    jDot.className = "dot critical pulse";
+    jText.textContent = "Jarvis gestoppt";
+  }
+  let jDetail = jarvis.state || "–";
+  if (jarvis.active && jarvis.uptime_seconds != null) {
+    jDetail += " · seit " + formatUptime(jarvis.uptime_seconds);
+  }
+  document.getElementById("jarvis-detail").textContent = jDetail;
+  if (!controlActionInFlight) {
+    document.getElementById("btn-start").disabled = jarvis.active === true;
+    document.getElementById("btn-stop").disabled = jarvis.active !== true;
+    // Aus steuert den ganzen Pi, nicht nur Jarvis - unabhaengig vom
+    // Jarvis-Status immer klickbar (ausser waehrend eine Aktion laeuft).
+    document.getElementById("btn-shutdown").disabled = false;
+  }
+  const restarts = jarvis.restart_count;
+  document.getElementById("restart-val").textContent = restarts != null ? restarts : "–";
+
+  const timer = d.update_timer || {};
+  const timerDot = document.getElementById("timer-dot");
+  const timerText = document.getElementById("timer-text");
+  const MECHANISM_LABEL = { timer: "Polling-Timer", runner: "Actions-Runner" };
+  if (timer.active) {
+    timerDot.className = "dot good";
+    timerText.textContent = "Aktiv (" + (MECHANISM_LABEL[timer.mechanism] || timer.mechanism) + ")";
+  } else {
+    timerDot.className = "dot critical";
+    timerText.textContent = "Inaktiv";
+  }
+  document.getElementById("timer-lastrun").textContent = timer.last_run || "–";
+
+  const git = d.git || {};
+  document.getElementById("git-commit").textContent = git.commit || "–";
+  document.getElementById("git-message").textContent = git.message || "–";
+
+  renderHistory(d.deploy_history || []);
+}
+
+const OUTCOME_LABEL = {
+  deployed: "Deployt",
+  deployed_service_down: "Deployt (Jarvis wartet auf Konfiguration)",
+  rolled_back: "Zurückgerollt",
+};
+function renderHistory(entries) {
+  const list = document.getElementById("history-list");
+  const empty = document.getElementById("history-empty");
+  if (!entries.length) {
+    if (empty) empty.style.display = "";
+    return;
+  }
+  if (empty) empty.style.display = "none";
+  // Nur neu bauen, wenn sich die Anzahl geaendert hat - sonst wuerde jede
+  // 3s-Aktualisierung die Liste unnoetig neu rendern und z.B. Scroll-Position
+  // oder Hover-Zustand zuruecksetzen.
+  if (list.children.length === entries.length + (empty ? 1 : 0)) return;
+
+  list.querySelectorAll(".history-item").forEach(el => el.remove());
+  for (const e of entries) {
+    const row = document.createElement("div");
+    row.className = "history-item";
+    const time = new Date(e.ts).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+    const outcomeClass = e.outcome || "";
+    const outcomeLabel = OUTCOME_LABEL[e.outcome] || e.outcome || "?";
+    row.innerHTML =
+      '<span class="time">' + time + '</span>' +
+      '<span class="desc"><code>' + (e.from || "?") + '</code> → <code>' + (e.to || "?") + '</code></span>' +
+      '<span class="outcome ' + outcomeClass + '">' + outcomeLabel + '</span>';
+    list.appendChild(row);
+  }
+}
+
+document.getElementById("save-btn").addEventListener("click", () => {
+  const host = document.getElementById("host-input").value.trim();
+  const port = document.getElementById("port-input").value.trim();
+  saveConfig(host, port);
+  poll();
+});
+document.getElementById("settings-btn").addEventListener("click", () => {
+  document.getElementById("settings-panel").classList.toggle("open");
+});
+
+document.getElementById("refresh-btn").addEventListener("click", async () => {
+  const btn = document.getElementById("refresh-btn");
+  if (btn.disabled) return;
+  btn.disabled = true;
+  btn.classList.add("spinning");
+  const start = Date.now();
+  await poll();
+  const elapsed = Date.now() - start;
+  const minSpin = 450;
+  if (elapsed < minSpin) await new Promise(r => setTimeout(r, minSpin - elapsed));
+  btn.classList.remove("spinning");
+  btn.disabled = false;
+});
+
+function applyTheme(theme) {
+  if (theme) document.documentElement.setAttribute("data-theme", theme);
+  else document.documentElement.removeAttribute("data-theme");
+}
+document.getElementById("theme-btn").addEventListener("click", () => {
+  const current = localStorage.getItem("pi_theme") || "auto";
+  const next = current === "dark" ? "light" : current === "light" ? "auto" : "dark";
+  localStorage.setItem("pi_theme", next);
+  applyTheme(next === "auto" ? null : next);
+});
+
+(function init() {
+  const { host, port } = loadConfig();
+  document.getElementById("host-input").value = host;
+  document.getElementById("port-input").value = port;
+  const savedTheme = localStorage.getItem("pi_theme");
+  if (savedTheme && savedTheme !== "auto") applyTheme(savedTheme);
+  poll();
+  setInterval(poll, 3000);
+})();
+</script>
+</body>
+</html>

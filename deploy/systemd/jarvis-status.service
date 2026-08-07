@@ -1,0 +1,39 @@
+[Unit]
+Description=Jarvis Status-Endpunkt fuer das Dashboard
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Absichtlich das System-Python und nicht /home/pi/jarvis/.venv: der Status
+# soll auch dann antworten, wenn im venv gerade ein pip install laeuft oder
+# fehlgeschlagen ist. status_server.py nutzt nur die Standardbibliothek.
+ExecStart=/usr/bin/python3 /home/pi/jarvis/deploy/status_server.py
+WorkingDirectory=/home/pi/jarvis
+Environment=JARVIS_APP_DIR=/home/pi/jarvis
+Environment=JARVIS_STATUS_PORT=8090
+Environment=JARVIS_STATUS_BIND=0.0.0.0
+Restart=always
+RestartSec=5
+User=pi
+Group=pi
+
+# Der Dienst steuert per sudo drei konkrete systemctl-Befehle (An/Ruhemodus/
+# Aus, siehe deploy/README.md) und schreibt sein eigenes Protokoll nach
+# data/ - NoNewPrivileges wuerde sudo komplett blockieren (setuid braucht
+# genau die Privilegien-Eskalation, die dieses Flag verbietet), deshalb hier
+# bewusst NICHT gesetzt, anders als man fuer einen rein lesenden Dienst
+# erwarten wuerde. ProtectHome bleibt read-only bis auf den einen Ordner,
+# den der Dienst tatsaechlich beschreiben muss.
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/pi/jarvis/data
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictNamespaces=true
+LockPersonality=true
+
+[Install]
+WantedBy=multi-user.target
