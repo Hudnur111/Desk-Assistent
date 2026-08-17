@@ -499,6 +499,13 @@
     </div>
   </div>
 
+  <div class="card history-card">
+    <h2><svg class="icon" viewBox="0 0 24 24" style="width:13px;height:13px"><path d="M18.36 6.64a9 9 0 1 1-12.73 0M12 2v10"></path></svg>Steuerungs-Verlauf</h2>
+    <div id="control-history-list" class="history-list">
+      <div class="history-empty" id="control-history-empty">Noch keine Steuerungs-Aktionen ausgeloest.</div>
+    </div>
+  </div>
+
   <div class="docs-card">
     <h2><svg class="icon" viewBox="0 0 24 24" style="width:13px;height:13px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"></path></svg>Über dieses System</h2>
     <div class="docs-grid">
@@ -795,6 +802,36 @@ function render(d) {
   document.getElementById("git-message").textContent = git.message || "–";
 
   renderHistory(d.deploy_history || []);
+  renderControlHistory(d.control_history || []);
+}
+
+const CONTROL_ACTION_LABEL = { start: "An", stop: "Ruhemodus", shutdown: "Aus" };
+function renderControlHistory(entries) {
+  const list = document.getElementById("control-history-list");
+  const empty = document.getElementById("control-history-empty");
+  if (!entries.length) {
+    if (empty) empty.style.display = "";
+    return;
+  }
+  if (empty) empty.style.display = "none";
+  // Wie bei renderHistory(): nur neu bauen, wenn sich die Anzahl geaendert
+  // hat, sonst wuerde jeder 3s-Poll die Liste unnoetig neu rendern.
+  if (list.children.length === entries.length + (empty ? 1 : 0)) return;
+
+  list.querySelectorAll(".history-item").forEach(el => el.remove());
+  for (const e of entries) {
+    const row = document.createElement("div");
+    row.className = "history-item";
+    const time = new Date(e.ts).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+    const label = CONTROL_ACTION_LABEL[e.action] || e.action || "?";
+    const outcomeClass = e.ok ? "deployed" : "rolled_back";
+    const outcomeLabel = e.ok ? "Erfolgreich" : "Fehlgeschlagen";
+    row.innerHTML =
+      '<span class="time">' + time + '</span>' +
+      '<span class="desc"><code>' + label + '</code></span>' +
+      '<span class="outcome ' + outcomeClass + '">' + outcomeLabel + '</span>';
+    list.appendChild(row);
+  }
 }
 
 const OUTCOME_LABEL = {
