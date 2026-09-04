@@ -79,6 +79,25 @@ Autonomer, sprach- und UI-gesteuerter Assistent für Raspberry Pi 4B — IT-Cons
   per direktem Curl-Test. Dockerfile/Compose sind nach Best Practices geschrieben,
   aber der tatsächliche Build muss auf einer Maschine mit Docker-Hub-Zugriff
   (z. B. dem Pi) verifiziert werden.
+- **Phase 7 (Das Gehirn):** Langzeitgedächtnis als PARA-strukturierter,
+  Obsidian-kompatibler Markdown-Vault (`src/jarvis/brain.py`, `BrainStore`),
+  getrennt vom Kurzzeitverlauf (`memory.py`). Jeder Turn wird kompakt als
+  Daily-Log abgelegt (`00-Inbox/Daily-YYYY-MM-DD.md`); die Tools
+  `save_to_brain`/`search_brain` (`tools/brain.py`) lassen den Agenten
+  selbstständig kuratierte Notizen in Projects/Areas/Resources ablegen und
+  wiederfinden. Suche läuft rein über Keyword-Matching (stdlib, kein
+  Embedding-Modell/keine zusätzliche Abhängigkeit) und liefert einen auf
+  `max_chars` gedeckelten Kontext-Block für den System-Prompt - hält den
+  Tokenverbrauch pro Turn klein, statt das gesamte Gehirn mitzuschicken.
+  Zusätzlich begrenzt `Agent._windowed_history()` den an die API gesendeten
+  Verlauf auf die letzten `JARVIS_MEMORY_MAX_MESSAGES` Nachrichten (immer an
+  vollständigen Turn-Grenzen geschnitten, nie mitten in einem
+  Tool-Use/Tool-Result-Paar) - das vollständige Gedächtnis bleibt über
+  `MemoryStore`/`BrainStore` erhalten, nur der API-Kontext wird schlank
+  gehalten. Optional per `JARVIS_BRAIN_ENABLED=true` (Standard), Pfad über
+  `JARVIS_BRAIN_PATH` (Standard `data/brain`) - dieses Verzeichnis lässt sich
+  1:1 als Obsidian-Vault öffnen. Ein befülltes Referenz-Vault mit derselben
+  PARA-Struktur liegt als Vorlage im Branch `feature/obsidian-brain-system`.
 
 ## Setup
 

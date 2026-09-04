@@ -21,6 +21,9 @@ class Settings:
     ui_port: int = 8000
     memory_enabled: bool = True
     memory_path: str = "data/history.json"
+    memory_max_messages: int = 20
+    brain_enabled: bool = True
+    brain_path: str = "data/brain"
     daily_briefing_time: str | None = None
 
     @classmethod
@@ -53,5 +56,11 @@ class Settings:
             memory_enabled=os.environ.get("JARVIS_MEMORY_ENABLED", "true").lower()
             == "true",
             memory_path=os.environ.get("JARVIS_MEMORY_PATH", cls.memory_path),
+            memory_max_messages=int(
+                os.environ.get("JARVIS_MEMORY_MAX_MESSAGES", cls.memory_max_messages)
+            ),
+            brain_enabled=os.environ.get("JARVIS_BRAIN_ENABLED", "true").lower()
+            == "true",
+            brain_path=os.environ.get("JARVIS_BRAIN_PATH", cls.brain_path),
             daily_briefing_time=os.environ.get("JARVIS_DAILY_BRIEFING_TIME") or None,
         )

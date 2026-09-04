@@ -12,12 +12,14 @@ from jarvis.audio.stt import SpeechToText
 from jarvis.audio.tts import TextToSpeech
 from jarvis.audio.vad import EnergyVAD
 from jarvis.audio.wakeword import WakeWordDetector
+from jarvis.brain import BrainStore
 from jarvis.config import Settings
 from jarvis.logging_setup import configure_logging
 from jarvis.memory import MemoryStore
 from jarvis.pipeline import VoicePipeline
 from jarvis.resource_monitor import log_resource_usage_periodically
 from jarvis.scheduler import DailyBriefingTrigger
+from jarvis.tools.brain import brain_tools
 from jarvis.tools.builtin import builtin_tools
 from jarvis.tools.documents import document_tools
 from jarvis.tools.email import ImapEmailBackend, build_email_draft_tool
@@ -55,6 +57,10 @@ async def run() -> None:
         registry.register(tool)
     for tool in document_tools():
         registry.register(tool)
+    brain = BrainStore(Path(settings.brain_path)) if settings.brain_enabled else None
+    if brain is not None:
+        for tool in brain_tools(brain):
+            registry.register(tool)
     if settings.imap_host and settings.email_address and settings.email_password:
         backend = ImapEmailBackend(
             host=settings.imap_host,
@@ -81,7 +87,9 @@ async def run() -> None:
         tools=registry,
         ui_hub=ui_hub,
         memory=memory,
+        brain=brain,
         initial_history=initial_history,
+        max_context_messages=settings.memory_max_messages,
     )
 
     queue: "asyncio.Queue[str]" = asyncio.Queue()
