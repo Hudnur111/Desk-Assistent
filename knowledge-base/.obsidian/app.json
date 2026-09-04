@@ -1,0 +1,19 @@
+{
+  "defaultViewMode": "source",
+  "alwaysUpdateLinks": true,
+  "showInlineTitle": true,
+  "showFrontmatter": false,
+  "useMarkdownLinks": true,
+  "autoConvertHtml": false,
+  "fileSortOrder": "alphabetical",
+  "readableLineLength": true,
+  "lineLength": 80,
+  "showUnsupportedFiles": false,
+  "showFolderNote": true,
+  "trashInLogicalOrder": true,
+  "strictLineBreaks": false,
+  "showLineNumber": true,
+  "livePreview": true,
+  "spellcheck": true,
+  "focusNewTabOnSearch": false
+}

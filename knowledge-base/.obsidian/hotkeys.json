@@ -1,0 +1,14 @@
+{
+  "app:toggle-left-sidebar": [
+    {
+      "modifiers": ["Ctrl"],
+      "key": "1"
+    }
+  ],
+  "app:toggle-right-sidebar": [
+    {
+      "modifiers": ["Ctrl"],
+      "key": "2"
+    }
+  ]
+}

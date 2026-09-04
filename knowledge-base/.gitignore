@@ -1,0 +1,26 @@
+# Obsidian
+.obsidian/workspace.json
+.obsidian/cache
+.obsidian/plugins/**/node_modules
+.obsidian/plugins/**/esbuild.js
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Development
+*.log
+.env
+.env.local
+node_modules/
+dist/
+
+# Temporary
+*.tmp
+*~
+.~*
