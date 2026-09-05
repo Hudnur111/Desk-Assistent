@@ -97,3 +97,29 @@ Aufbauend auf [ARCHITECTURE.md](./ARCHITECTURE.md). Jede Phase liefert ein lauff
   Netzwerk-Policy nicht erreichbar ist (per direktem Curl-Test verifiziert,
   nicht nur vermutet). Muss auf einer Maschine mit Docker-Hub-Zugriff
   (z. B. dem Pi) gebaut/verifiziert werden.
+
+## Phase 7 — Das Gehirn ✅
+- Langzeitgedaechtnis als PARA-strukturierter, Obsidian-kompatibler
+  Markdown-Vault (`src/jarvis/brain.py`, `BrainStore`) — getrennt vom
+  Kurzzeitverlauf (`memory.py`)
+- `capture()` legt Notizen nach exaktem Titel upsertend an; ein Titel-Slug-
+  Kollisionsfall (zwei verschiedene Titel ergeben denselben Dateinamen) wird
+  per Zeitstempel-Suffix aufgeloest statt still zu ueberschreiben
+- `log_turn()` protokolliert jeden Dialog kompakt in der Daily-Note der Inbox
+  (reines Datei-I/O, kein zusaetzlicher API-Tokenverbrauch)
+- Suche (`search()`/`context_block()`) laeuft ueber Keyword-Matching (stdlib,
+  kein Embedding-Modell/keine neue Abhaengigkeit); Snippets werden aus dem
+  Frontmatter-bereinigten Notiztext gezogen; der Kontext-Block fuer den
+  System-Prompt ist per `max_chars` gedeckelt
+- Tools `save_to_brain`/`search_brain` (`tools/brain.py`) geben dem Agenten
+  eigenstaendigen Zugriff aufs Gehirn
+- `Agent._windowed_history()` begrenzt den an die API gesendeten Verlauf auf
+  `JARVIS_MEMORY_MAX_MESSAGES` Nachrichten, immer an vollstaendigen
+  Turn-Grenzen geschnitten (nie mitten in einem Tool-Use/Tool-Result-Paar) —
+  das volle Gedaechtnis bleibt ueber `MemoryStore`/`BrainStore` erhalten
+- 19 Tests (`test_brain.py`, `test_tool_brain.py`, `test_agent_brain.py`),
+  62 Tests insgesamt, alle gruen
+- Optional per `JARVIS_BRAIN_ENABLED` (Standard `true`), Pfad ueber
+  `JARVIS_BRAIN_PATH` (Standard `data/brain`) — 1:1 als Obsidian-Vault
+  oeffenbar; ein befuelltes Referenz-Vault mit derselben PARA-Struktur liegt
+  als Vorlage im Branch `feature/obsidian-brain-system`

@@ -19,6 +19,11 @@ _CATEGORY_DIRS = {
 
 _WORD_RE = re.compile(r"\w+", re.UNICODE)
 _SLUG_RE = re.compile(r"[^\w\- ]+", re.UNICODE)
+_FRONTMATTER_RE = re.compile(r"\A---\n.*?\n---\n+", re.DOTALL)
+
+
+def _strip_frontmatter(text: str) -> str:
+    return _FRONTMATTER_RE.sub("", text, count=1)
 
 
 @dataclass(frozen=True)
@@ -31,6 +36,17 @@ class BrainMatch:
 
 def _slugify(title: str) -> str:
     return _SLUG_RE.sub("", title).strip().replace(" ", "-") or "note"
+
+
+def _frontmatter_title(path: Path) -> str | None:
+    try:
+        lines = path.read_text(encoding="utf-8", errors="ignore").splitlines()[:10]
+    except OSError:
+        return None
+    for line in lines:
+        if line.startswith("title: "):
+            return line[len("title: ") :].strip()
+    return None
 
 
 def _best_snippet(text: str, keywords: set[str], width: int = 160) -> str:
@@ -60,10 +76,20 @@ class BrainStore:
         category: str = "inbox",
         tags: list[str] | None = None,
     ) -> Path:
+        """Legt eine Notiz an oder aktualisiert sie (Upsert nach exaktem Titel).
+
+        Zwei verschiedene Titel, die auf denselben Dateinamen slugifizieren
+        (z. B. "Server!" und "Server?"), landen dank Kollisions-Suffix nicht
+        versehentlich in derselben Datei.
+        """
+
         def _write() -> Path:
             directory = self.category_dir(category)
             directory.mkdir(parents=True, exist_ok=True)
-            path = directory / f"{_slugify(title)}.md"
+            slug = _slugify(title)
+            path = directory / f"{slug}.md"
+            if path.is_file() and _frontmatter_title(path) not in (title, None):
+                path = directory / f"{slug}-{datetime.now().strftime('%H%M%S')}.md"
             frontmatter = (
                 "---\n"
                 f"title: {title}\n"
@@ -125,7 +151,7 @@ class BrainStore:
                     BrainMatch(
                         title=title_line.lstrip("# ").strip(),
                         path=md_path,
-                        snippet=_best_snippet(text, keywords),
+                        snippet=_best_snippet(_strip_frontmatter(text), keywords),
                         score=score,
                     )
                 )

@@ -19,6 +19,31 @@ async def test_capture_writes_frontmatter_and_content(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_capture_same_title_upserts_same_file(tmp_path: Path) -> None:
+    brain = BrainStore(tmp_path)
+
+    first = await brain.capture("Serverwartung", "Version 1")
+    second = await brain.capture("Serverwartung", "Version 2")
+
+    assert first == second
+    assert "Version 2" in second.read_text(encoding="utf-8")
+
+
+@pytest.mark.asyncio
+async def test_capture_slug_collision_with_different_title_creates_new_file(
+    tmp_path: Path,
+) -> None:
+    brain = BrainStore(tmp_path)
+
+    first = await brain.capture("Server!", "Erste Notiz")
+    second = await brain.capture("Server?", "Zweite Notiz")
+
+    assert first != second
+    assert "Erste Notiz" in first.read_text(encoding="utf-8")
+    assert "Zweite Notiz" in second.read_text(encoding="utf-8")
+
+
+@pytest.mark.asyncio
 async def test_capture_defaults_to_inbox(tmp_path: Path) -> None:
     brain = BrainStore(tmp_path)
 
@@ -52,6 +77,17 @@ async def test_search_finds_matching_note_ranked_by_keyword_count(
 
     assert len(results) == 1
     assert results[0].title == "Python Tipps"
+
+
+@pytest.mark.asyncio
+async def test_search_snippet_excludes_frontmatter_noise(tmp_path: Path) -> None:
+    brain = BrainStore(tmp_path)
+    await brain.capture("Serverwartung", "Der Server laeuft auf Port 8080.")
+
+    results = await brain.search("Server")
+
+    assert "8080" in results[0].snippet
+    assert "created:" not in results[0].snippet
 
 
 @pytest.mark.asyncio
