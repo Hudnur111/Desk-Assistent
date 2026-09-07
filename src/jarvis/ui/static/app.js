@@ -15,9 +15,13 @@ const reticleEl = document.getElementById("reticle");
 const clockEl = document.getElementById("clock");
 const statsEl = document.getElementById("stats");
 const bootEl = document.getElementById("boot");
+const chatFormEl = document.getElementById("chat-form");
+const chatTextEl = document.getElementById("chat-text");
+const chatSendEl = document.getElementById("chat-send");
 
 let toolcallTimer = null;
 let reticleTimer = null;
+let socket = null;
 
 function setStatus(state) {
   body.dataset.state = state;
@@ -93,13 +97,33 @@ function handleEvent(event) {
   }
 }
 
+function setChatEnabled(enabled) {
+  chatTextEl.disabled = !enabled;
+  chatSendEl.disabled = !enabled;
+}
+
+function sendChatMessage(text) {
+  if (!socket || socket.readyState !== WebSocket.OPEN) return;
+  socket.send(JSON.stringify({ type: "chat", text }));
+}
+
+chatFormEl.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const text = chatTextEl.value.trim();
+  if (!text) return;
+  sendChatMessage(text);
+  chatTextEl.value = "";
+});
+
 function connect() {
   const protocol = window.location.protocol === "https:" ? "wss" : "ws";
   const ws = new WebSocket(`${protocol}://${window.location.host}/ws`);
+  socket = ws;
 
   ws.addEventListener("open", () => {
     connTextEl.textContent = "verbunden";
     connEl.className = "conn online";
+    setChatEnabled(true);
   });
 
   ws.addEventListener("message", (event) => {
@@ -113,6 +137,7 @@ function connect() {
   ws.addEventListener("close", () => {
     connTextEl.textContent = "getrennt - erneuter Versuch…";
     connEl.className = "conn offline";
+    setChatEnabled(false);
     setTimeout(connect, 2000);
   });
 

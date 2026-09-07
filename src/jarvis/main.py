@@ -112,7 +112,7 @@ async def run() -> None:
 
         assert ui_hub is not None
         config = uvicorn.Config(
-            create_app(ui_hub),
+            create_app(ui_hub, queue),
             host=settings.ui_host,
             port=settings.ui_port,
             log_level="warning",

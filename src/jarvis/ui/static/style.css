@@ -463,3 +463,62 @@ body[data-state="speaking"] .bars {
   background: #1c3350;
   border-radius: 4px;
 }
+
+.chat-input {
+  position: relative;
+  z-index: 6;
+  display: flex;
+  gap: 0.75rem;
+  padding: 0.85rem 2rem;
+  border-top: 1px solid #14283f;
+  background: var(--panel);
+  backdrop-filter: blur(4px);
+}
+
+.chat-input input {
+  flex: 1;
+  min-width: 0;
+  background: #0a1524;
+  border: 1px solid #1c3350;
+  border-radius: 4px;
+  padding: 0.6rem 0.85rem;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  outline: none;
+  transition: border-color 0.2s ease;
+}
+
+.chat-input input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent-soft);
+}
+
+.chat-input input::placeholder {
+  color: var(--text-dim);
+}
+
+.chat-input input:disabled,
+.chat-input button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.chat-input button {
+  flex: 0 0 auto;
+  padding: 0.6rem 1.25rem;
+  background: transparent;
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.chat-input button:not(:disabled):hover {
+  background: var(--accent);
+  color: #05070d;
+}

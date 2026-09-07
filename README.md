@@ -98,6 +98,17 @@ Autonomer, sprach- und UI-gesteuerter Assistent für Raspberry Pi 4B — IT-Cons
   `JARVIS_BRAIN_PATH` (Standard `data/brain`) - dieses Verzeichnis lässt sich
   1:1 als Obsidian-Vault öffnen. Ein befülltes Referenz-Vault mit derselben
   PARA-Struktur liegt als Vorlage im Branch `feature/obsidian-brain-system`.
+- **Phase 8 (Browser-Chat):** Vollwertige Text-Chat-Oberfläche im Display-HUD
+  (`src/jarvis/ui/static/index.html`) für den Einstieg ganz ohne Mikrofon/
+  Lautsprecher. Der `/ws`-WebSocket-Endpunkt (`ui/server.py`) ist jetzt
+  bidirektional: Chat-Nachrichten aus dem Browser laufen in dieselbe
+  `asyncio.Queue` wie Konsolen- und Spracheingabe (Producer/Consumer-Muster,
+  der Agent unterscheidet nicht zwischen Eingabequellen). Eingabefeld ist
+  gesperrt, solange keine WebSocket-Verbindung steht, und reaktiviert sich
+  automatisch nach Reconnect. Visuell mit echtem headless Chromium
+  (Playwright) end-to-end verifiziert: Nachricht eingeben → senden →
+  Antwort im Log, exakt derselbe Codepfad wie in Produktion. Aktivierung wie
+  bisher über `JARVIS_UI_ENABLED=true`, kein zusätzliches Flag nötig.
 
 ## Setup
 

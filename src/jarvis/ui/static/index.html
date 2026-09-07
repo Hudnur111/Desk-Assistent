@@ -51,6 +51,17 @@
 
   <section class="log" id="log" aria-label="Gespraechsverlauf"></section>
 
+  <form class="chat-input" id="chat-form" autocomplete="off">
+    <input
+      type="text"
+      id="chat-text"
+      placeholder="Nachricht an Jarvis…"
+      aria-label="Nachricht an Jarvis"
+      disabled
+    />
+    <button type="submit" id="chat-send" disabled>Senden</button>
+  </form>
+
   <script src="/static/app.js"></script>
 </body>
 </html>
