@@ -30,7 +30,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Jarvis aktualisieren und neu starten
-        run: bash deploy/update.sh
+        run: bash agent/deploy/update.sh
         env:
           JARVIS_APP_DIR: /home/denny/jarvis
           JARVIS_BRANCH: main

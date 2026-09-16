@@ -1,141 +1,103 @@
-# Jarvis-Desk-Assistant
+# Jarvis
 
-Autonomer, sprach- und UI-gesteuerter Assistent für Raspberry Pi 4B — IT-Consulting, Büro-Automatisierung und agentisches Tool-Handling im Avengers-/Cyberpunk-Stil.
+Persönlicher KI-Desk-Assistent mit Chat, Sprache, Langzeitgedächtnis und
+Office-Automatisierung. Zwei Komponenten, eine Identität:
 
-- Architektur & Technologie-Entscheidungen: [ARCHITECTURE.md](./ARCHITECTURE.md)
-- Entwicklungs-Roadmap: [ROADMAP.md](./ROADMAP.md)
+- **`/web`** – Next.js Chat-/Sprach-Oberfläche, gehostet auf Vercel. Von
+  überall erreichbar (Handy, Laptop, Browser).
+- **`/agent`** – Python-Agent, der lokal auf deinem PC (oder Raspberry Pi)
+  läuft. Er hat Zugriff auf dein Dateisystem, steuert Word/Excel/PowerPoint/
+  Outlook via COM, führt Konsole/Sprach-I/O aus und schreibt jeden
+  Gesprächsverlauf in ein Obsidian-kompatibles Gehirn (`/agent/data/brain`).
 
-## Status
+## Warum zwei Teile?
 
-- **Phase 1 (Konsolen-MVP):** asynchroner Agent-Loop mit Tool-Registry und drei
-  Beispiel-Tools (`get_current_time`, `save_note`, `read_file`).
-- **Phase 2 (Sprach-I/O):** Wake-Word (`openWakeWord`) → VAD-gesteuerte Aufnahme →
-  STT (`faster-whisper`) → Agent → TTS (`Piper`), als zusätzlicher Producer/Consumer
-  parallel zur Konsoleneingabe (`src/jarvis/pipeline.py`, `src/jarvis/audio/`).
-  Optional per `JARVIS_VOICE_ENABLED=true` aktivierbar; Text- und Sprachmodus
-  laufen gleichzeitig über dieselbe Agent-Queue.
+Vercel ist eine Cloud-/Serverless-Plattform – sie hat keinen Zugriff auf
+Dateien, Mikrofon oder installierte Programme auf deinem PC. Alles, was
+"wie ein Kollege am Schreibtisch" arbeiten soll (Word/Excel/Outlook
+automatisieren, Dateien lesen/schreiben, ein persistentes Gedächtnis
+führen), muss lokal laufen. Die Web-App ist die Oberfläche, die von
+überall erreichbar ist; der lokale Agent ist die Arbeitskraft mit echtem
+System-Zugriff. Beide teilen sich dieselbe Persönlichkeit (System-Prompt),
+laufen aber unabhängig – es gibt aktuell keine automatische Fernsteuerung
+des lokalen Agenten über die Cloud-UI hinweg (siehe "Grenzen" unten).
 
-  Hinweis: Modell-Downloads (Whisper-Gewichte, Piper-Stimmen) sowie Mikrofon-/
-  Lautsprecher-Hardware sind in der Entwicklungs-Sandbox nicht verfügbar. Die
-  Audio-Module sind daher gegen `AudioSource`/`AudioSink`-Schnittstellen gebaut
-  (`WavFileSource`/`WavFileSink` als Hardware-Ersatz) und per Unit-Tests mit
-  Fakes abgedeckt (`tests/`); der volle Hardware-Pfad muss auf dem Pi verifiziert
-  werden.
-- **Phase 3 (Büro-Automatisierung):** Tools `create_document`/`append_to_document`/
-  `read_document` (`python-docx`, voll offline getestet) sowie `create_email_draft`
-  (IMAP-APPEND in den Drafts-Ordner, App-Passwort statt OAuth). Die E-Mail sendet
-  nie automatisch - Versenden bleibt bewusst ein manueller Schritt im E-Mail-Client.
-  Das E-Mail-Tool wird nur registriert, wenn `JARVIS_IMAP_HOST`,
-  `JARVIS_EMAIL_ADDRESS` und `JARVIS_EMAIL_PASSWORD` gesetzt sind.
-- **Phase 4 (Display-UI):** FastAPI + WebSocket-Server (`src/jarvis/ui/server.py`)
-  broadcastet Status (`hört zu`/`denkt nach`/`spricht`/`bereit`), Nachrichten und
-  Tool-Aufrufe über den `UIHub` (`src/jarvis/ui/hub.py`) an ein Cyberpunk-HUD-
-  Frontend (`src/jarvis/ui/static/`) - reines HTML/CSS/JS ohne Build-Schritt, damit
-  auf dem Pi kein Node.js noetig ist. Optional per `JARVIS_UI_ENABLED=true`; läuft
-  als weiterer asyncio-Task neben Konsole/Sprache/Agent. Auf dem Pi im
-  Chromium-Kiosk-Modus öffnen: `chromium-browser --kiosk http://127.0.0.1:8000`.
-
-  Visuell mit echtem (headless) Chromium via Playwright verifiziert - alle vier
-  Zustände sowie der Nachrichten-/Tool-Log wurden gerendert und geprüft.
-
-  HUD-Details: rotierender Tick-Ring (Dial-Optik), umlaufender Orbit-Punkt,
-  Ecken-Brackets im Viewport, Boot-Sequenz beim ersten Laden, dezenter
-  Scan-Sweep im Hintergrund, ein "Reticle"-Puls bei jedem Tool-Aufruf, Live-Uhr
-  und eine echte Telemetrie-Anzeige (RSS-Speicher live vom `resource_monitor`
-  über den `UIHub` eingespeist) sowie Zeitstempel im Log. Alles über mehrere
-  Iterationen hinweg per Playwright-Screenshots gegengeprüft, u. a. um zu
-  verifizieren, dass der animierte Orbit-Punkt den Statustext nie überlappt.
-- **Phase 5 (Autonomie):**
-  - Persistenter Memory-Layer (`src/jarvis/memory.py`): Gesprächsverlauf wird
-    als JSON gespeichert und beim Neustart geladen - Sitzungen bauen aufeinander auf.
-  - Proaktiver Trigger (`src/jarvis/scheduler.py`): optionales tägliches
-    Briefing zu fester Uhrzeit (`JARVIS_DAILY_BRIEFING_TIME`), legt den Prompt
-    selbstständig in dieselbe Agent-Queue wie Konsole/Sprache.
-  - systemd-Watchdog-Integration (`src/jarvis/watchdog.py`): sd_notify direkt
-    per Unix-Socket implementiert (keine libsystemd-Abhängigkeit) - meldet
-    Bereitschaft und sendet Herzschlag, damit `WatchdogSec` + `Restart=always`
-    hängende Prozesse automatisch neu starten.
-  - Ressourcen-Logging (`src/jarvis/resource_monitor.py`): periodisches
-    RSS/CPU-Logging über die stdlib (`resource`), keine zusätzliche
-    Abhängigkeit wie `psutil`.
-  - Robuste Fehlerbehandlung: Ausfälle der Claude-API (`anthropic.APIError`)
-    werden abgefangen, der Verlauf sauber zurückgerollt und eine
-    verständliche deutsche Fallback-Antwort zurückgegeben statt eines Absturzes -
-    gegen die echte API mit ungültigem Key verifiziert (401 wurde korrekt
-    abgefangen).
-- **Phase 6 (Härtung):**
-  - `Dockerfile` + `docker-compose.yml` für Container-Betrieb als Alternative
-    zu systemd+venv.
-  - `deploy/systemd/jarvis.service` (Type=notify, Watchdog, Restart=always)
-    und `deploy/autostart/jarvis-kiosk.desktop` für Chromium-Kiosk-Autostart -
-    siehe `deploy/README.md`.
-  - Secrets-Management bewusst einfach gehalten: `.env` (gitignored) statt
-    Vault/Secret-Manager - passend für ein Einzelnutzer-Pi-Projekt.
-  - Tests für Agent-Loop, Tool-Dispatch und Fehlerpfade: 42 Tests insgesamt.
-
-  Hinweis: Der Docker-Build wurde in dieser Sandbox tatsächlich versucht (Docker-
-  Daemon lief) und schlägt am Image-Pull fehl - `production.cloudfront.docker.com`
-  (Docker Hub Blob-Storage) ist per Netzwerk-Policy nicht erreichbar, verifiziert
-  per direktem Curl-Test. Dockerfile/Compose sind nach Best Practices geschrieben,
-  aber der tatsächliche Build muss auf einer Maschine mit Docker-Hub-Zugriff
-  (z. B. dem Pi) verifiziert werden.
-- **Phase 7 (Das Gehirn):** Langzeitgedächtnis als PARA-strukturierter,
-  Obsidian-kompatibler Markdown-Vault (`src/jarvis/brain.py`, `BrainStore`),
-  getrennt vom Kurzzeitverlauf (`memory.py`). Jeder Turn wird kompakt als
-  Daily-Log abgelegt (`00-Inbox/Daily-YYYY-MM-DD.md`); die Tools
-  `save_to_brain`/`search_brain` (`tools/brain.py`) lassen den Agenten
-  selbstständig kuratierte Notizen in Projects/Areas/Resources ablegen und
-  wiederfinden. Suche läuft rein über Keyword-Matching (stdlib, kein
-  Embedding-Modell/keine zusätzliche Abhängigkeit) und liefert einen auf
-  `max_chars` gedeckelten Kontext-Block für den System-Prompt - hält den
-  Tokenverbrauch pro Turn klein, statt das gesamte Gehirn mitzuschicken.
-  Zusätzlich begrenzt `Agent._windowed_history()` den an die API gesendeten
-  Verlauf auf die letzten `JARVIS_MEMORY_MAX_MESSAGES` Nachrichten (immer an
-  vollständigen Turn-Grenzen geschnitten, nie mitten in einem
-  Tool-Use/Tool-Result-Paar) - das vollständige Gedächtnis bleibt über
-  `MemoryStore`/`BrainStore` erhalten, nur der API-Kontext wird schlank
-  gehalten. Optional per `JARVIS_BRAIN_ENABLED=true` (Standard), Pfad über
-  `JARVIS_BRAIN_PATH` (Standard `data/brain`) - dieses Verzeichnis lässt sich
-  1:1 als Obsidian-Vault öffnen. Ein befülltes Referenz-Vault mit derselben
-  PARA-Struktur liegt als Vorlage im Branch `feature/obsidian-brain-system`.
-- **Phase 8 (Browser-Chat):** Vollwertige Text-Chat-Oberfläche im Display-HUD
-  (`src/jarvis/ui/static/index.html`) für den Einstieg ganz ohne Mikrofon/
-  Lautsprecher. Der `/ws`-WebSocket-Endpunkt (`ui/server.py`) ist jetzt
-  bidirektional: Chat-Nachrichten aus dem Browser laufen in dieselbe
-  `asyncio.Queue` wie Konsolen- und Spracheingabe (Producer/Consumer-Muster,
-  der Agent unterscheidet nicht zwischen Eingabequellen). Eingabefeld ist
-  gesperrt, solange keine WebSocket-Verbindung steht, und reaktiviert sich
-  automatisch nach Reconnect. Visuell mit echtem headless Chromium
-  (Playwright) end-to-end verifiziert: Nachricht eingeben → senden →
-  Antwort im Log, exakt derselbe Codepfad wie in Produktion. Aktivierung wie
-  bisher über `JARVIS_UI_ENABLED=true`, kein zusätzliches Flag nötig.
-
-## Setup
+## `/web` – Cloud-Chat (Vercel)
 
 ```bash
-python3 -m venv .venv
-.venv/bin/pip install -e ".[dev]"
-cp .env.example .env   # ANTHROPIC_API_KEY eintragen
+cd web
+npm install
+cp .env.example .env.local   # ANTHROPIC_API_KEY eintragen
+npm run dev
 ```
 
-## Starten
+Öffne `http://localhost:3000`. Chat mit Streaming-Antworten, Mikrofon-Input
+(Web Speech API) und Sprachausgabe (SpeechSynthesis).
+
+**Deploy auf Vercel:**
 
 ```bash
+npm i -g vercel
+cd web
+vercel
+```
+
+Environment Variable `ANTHROPIC_API_KEY` im Vercel-Projekt-Dashboard setzen.
+
+## `/agent` – Lokaler Coworker (PC / Raspberry Pi)
+
+```bash
+cd agent
+python3 -m venv .venv
+.venv/bin/pip install -e ".[dev]"
+# Nur auf Windows für Office-Automatisierung zusätzlich:
+.venv/bin/pip install -e ".[windows]"
+cp .env.example .env   # ANTHROPIC_API_KEY eintragen
 set -a && source .env && set +a
 .venv/bin/jarvis
 ```
 
-Für Sprachmodus zusätzlich in `.env` setzen: `JARVIS_VOICE_ENABLED=true`,
-`JARVIS_PIPER_MODEL_PATH=/pfad/zu/stimme.onnx` (siehe `.env.example`).
+**Features:**
 
-Für E-Mail-Entwürfe zusätzlich `JARVIS_IMAP_HOST`, `JARVIS_EMAIL_ADDRESS` und
-`JARVIS_EMAIL_PASSWORD` (App-Passwort) setzen.
+- **Chat/Konsole** – Text-Ein-/Ausgabe direkt im Terminal
+- **Sprache** – Wake-Word → VAD → STT (Whisper) → TTS (Piper),
+  `JARVIS_VOICE_ENABLED=true`
+- **Display-UI** – Cyberpunk-HUD im Browser, `JARVIS_UI_ENABLED=true` →
+  `http://127.0.0.1:8000`
+- **Dateiformate** (plattformunabhängig) – Word/Excel/PowerPoint-Dateien
+  erstellen/lesen (`python-docx`, `openpyxl`, `python-pptx`)
+- **Office-Live-Steuerung** (nur Windows, `pywin32`) – direkte
+  COM-Automatisierung installierter Word/Excel/PowerPoint/Outlook-Apps,
+  inkl. Words nativer Rechtschreib-/Grammatikprüfung und automatischer
+  Korrektur
+- **E-Mail-Entwürfe** – IMAP-Draft (plattformunabhängig) oder
+  Outlook-COM-Draft (Windows) – wird nie automatisch versendet
+- **Gehirn** (`BrainStore`, Obsidian-kompatibel) – jeder Gesprächsturn wird
+  automatisch als Daily-Log gespeichert; PARA-Struktur
+  (Projects/Areas/Resources/Inbox) für kuratierte Notizen;
+  Keyword-Suche liefert token-sparsamen Kontext an jeden neuen Turn –
+  **alles bleibt dauerhaft gespeichert**, über Neustarts hinweg
+- **Kurzzeitgedächtnis** (`MemoryStore`) – kompletter Gesprächsverlauf als
+  JSON, wird bei jedem Start geladen
 
-Für die Display-UI zusätzlich `JARVIS_UI_ENABLED=true` setzen und
-`http://127.0.0.1:8000` im Browser öffnen.
+Details zu Autostart/systemd/Kiosk-Modus auf dem Pi: [`agent/deploy/README.md`](./agent/deploy/README.md).
+
+## Grenzen (ehrlich gesagt)
+
+- Die Vercel-Web-App kann **nicht** den lokalen Agenten fernsteuern oder
+  auf deine lokalen Office-Dateien zugreifen – das wäre ein Sicherheitsloch
+  (fremde Server mit Zugriff auf deinen PC). Für "von überall auf meinen
+  PC zugreifen" nutze stattdessen einen Tunnel (ngrok/SSH) auf die
+  Display-UI des lokalen Agenten, oder Remote-Desktop.
+- COM-Automatisierung funktioniert nur unter Windows mit installiertem
+  Microsoft Office.
+- Sprach-Feature (Wake-Word/STT/TTS) braucht Mikrofon/Lautsprecher-Hardware
+  und wurde in der Entwicklungs-Sandbox nur mit Fake-Audio-Quellen
+  getestet.
 
 ## Tests
 
 ```bash
+cd agent
 .venv/bin/pytest tests/ -v
 ```

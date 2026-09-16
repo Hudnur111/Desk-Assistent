@@ -6,10 +6,10 @@
 # damit der Assistent nicht kaputt stehen bleibt.
 #
 # Aufruf durch .github/workflows/deploy-pi.yml, funktioniert aber auch manuell:
-#   bash deploy/update.sh
+#   bash agent/deploy/update.sh
 #
 # Konfiguration ueber Umgebungsvariablen:
-#   JARVIS_APP_DIR         Installationsverzeichnis (Default /home/denny/jarvis)
+#   JARVIS_APP_DIR         Repo-Root (git-Checkout) (Default /home/denny/jarvis)
 #   JARVIS_BRANCH          Branch                   (Default main)
 #   JARVIS_SERVICE         systemd-Unit             (Default jarvis.service)
 #   JARVIS_STATUS_SERVICE  Status-Unit       (Default jarvis-status.service)
@@ -17,19 +17,20 @@
 set -euo pipefail
 
 APP_DIR="${JARVIS_APP_DIR:-/home/denny/jarvis}"
+AGENT_DIR="$APP_DIR/agent"
 BRANCH="${JARVIS_BRANCH:-main}"
 SERVICE="${JARVIS_SERVICE:-jarvis.service}"
 STATUS_SERVICE="${JARVIS_STATUS_SERVICE:-jarvis-status.service}"
 FORCE_DEPS="${JARVIS_FORCE_DEPS:-false}"
 
-PIP="$APP_DIR/.venv/bin/pip"
+PIP="$AGENT_DIR/.venv/bin/pip"
 
 log() { printf '[update] %s\n' "$*"; }
 die() { printf '[update] FEHLER: %s\n' "$*" >&2; exit 1; }
 
-deps_hash() { sha256sum "$APP_DIR/pyproject.toml" | cut -d' ' -f1; }
+deps_hash() { sha256sum "$AGENT_DIR/pyproject.toml" | cut -d' ' -f1; }
 
-HISTORY_FILE="$APP_DIR/data/deploy-history.jsonl"
+HISTORY_FILE="$AGENT_DIR/data/deploy-history.jsonl"
 
 # Verlauf fuers Dashboard. Nur echte Deploy-Versuche (nicht jeder "schon
 # aktuell"-Check alle 90s, sonst Log-Spam). Felder sind alle selbst erzeugt
@@ -44,8 +45,8 @@ log_history() {
   tail -n 50 "$HISTORY_FILE" > "$HISTORY_FILE.tmp" && mv "$HISTORY_FILE.tmp" "$HISTORY_FILE"
 }
 
-[[ -d "$APP_DIR/.git" ]] || die "$APP_DIR ist kein git-Checkout. Erst deploy/bootstrap-pi.sh ausfuehren."
-[[ -x "$PIP" ]] || die "Kein venv unter $APP_DIR/.venv. Erst deploy/bootstrap-pi.sh ausfuehren."
+[[ -d "$APP_DIR/.git" ]] || die "$APP_DIR ist kein git-Checkout. Erst agent/deploy/bootstrap-pi.sh ausfuehren."
+[[ -x "$PIP" ]] || die "Kein venv unter $AGENT_DIR/.venv. Erst agent/deploy/bootstrap-pi.sh ausfuehren."
 
 cd "$APP_DIR"
 
@@ -80,7 +81,7 @@ git reset --hard "$target_commit"
 
 if [[ "$FORCE_DEPS" == "true" || "$previous_deps" != "$(deps_hash)" ]]; then
   log "Abhaengigkeiten werden nachgezogen (kann auf dem Pi einige Minuten dauern) ..."
-  "$PIP" install --upgrade -e .
+  "$PIP" install --upgrade -e "$AGENT_DIR"
   deps_reinstalled=true
 else
   log "pyproject.toml unveraendert - pip-Install uebersprungen."
@@ -112,11 +113,11 @@ if [[ "$service_was_active" == "false" ]]; then
 fi
 
 log "Neustart fehlgeschlagen (lief vorher einwandfrei). Rollback auf ${previous_commit:0:7} ..."
-log "Falls sudo nach einem Passwort gefragt hat, fehlt /etc/sudoers.d/jarvis-deploy (siehe deploy/bootstrap-pi.sh)."
+log "Falls sudo nach einem Passwort gefragt hat, fehlt /etc/sudoers.d/jarvis-deploy (siehe agent/deploy/bootstrap-pi.sh)."
 log_history "rolled_back" "$previous_commit" "$target_commit"
 git reset --hard "$previous_commit"
 if [[ "$deps_reinstalled" == "true" ]]; then
-  "$PIP" install --upgrade -e . || log "WARNUNG: pip-Install beim Rollback fehlgeschlagen."
+  "$PIP" install --upgrade -e "$AGENT_DIR" || log "WARNUNG: pip-Install beim Rollback fehlgeschlagen."
 fi
 sudo -n systemctl restart "$SERVICE" || log "WARNUNG: Auch der Rollback-Neustart schlug fehl - manuell pruefen."
 die "Deploy abgebrochen, Stand ${previous_commit:0:7} wiederhergestellt."

@@ -6,7 +6,7 @@
 # ausgegeben und von dir selbst eingegeben.
 #
 # Aufruf (auf dem Pi, als normaler Benutzer, NICHT als root):
-#   bash deploy/install-runner.sh
+#   bash agent/deploy/install-runner.sh
 set -euo pipefail
 
 RUNNER_DIR="${RUNNER_DIR:-$HOME/actions-runner}"
