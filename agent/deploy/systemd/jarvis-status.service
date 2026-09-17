@@ -5,12 +5,13 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-# Absichtlich das System-Python und nicht /home/pi/jarvis/.venv: der Status
-# soll auch dann antworten, wenn im venv gerade ein pip install laeuft oder
-# fehlgeschlagen ist. status_server.py nutzt nur die Standardbibliothek.
-ExecStart=/usr/bin/python3 /home/pi/jarvis/deploy/status_server.py
-WorkingDirectory=/home/pi/jarvis
-Environment=JARVIS_APP_DIR=/home/pi/jarvis
+# Absichtlich das System-Python und nicht /home/pi/jarvis/agent/.venv: der
+# Status soll auch dann antworten, wenn im venv gerade ein pip install laeuft
+# oder fehlgeschlagen ist. status_server.py nutzt nur die Standardbibliothek.
+ExecStart=/usr/bin/python3 /home/pi/jarvis/agent/deploy/status_server.py
+WorkingDirectory=/home/pi/jarvis/agent
+Environment=JARVIS_APP_DIR=/home/pi/jarvis/agent
+Environment=JARVIS_GIT_DIR=/home/pi/jarvis
 Environment=JARVIS_STATUS_PORT=8090
 Environment=JARVIS_STATUS_BIND=0.0.0.0
 Restart=always
@@ -28,7 +29,7 @@ Group=pi
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=read-only
-ReadWritePaths=/home/pi/jarvis/data
+ReadWritePaths=/home/pi/jarvis/agent/data
 ProtectKernelTunables=true
 ProtectControlGroups=true
 RestrictSUIDSGID=true

@@ -20,7 +20,8 @@ Zwei bewusste Entscheidungen:
 Konfiguration ueber Umgebungsvariablen:
   JARVIS_STATUS_PORT    Port                      (Default 8090)
   JARVIS_STATUS_BIND    Bind-Adresse              (Default 0.0.0.0)
-  JARVIS_APP_DIR        Checkout fuer die Git-Info (Default /home/denny/jarvis)
+  JARVIS_APP_DIR        Agent-Verzeichnis (venv/data), (Default /home/denny/jarvis/agent)
+  JARVIS_GIT_DIR        Repo-Root fuer die Git-Info  (Default = JARVIS_APP_DIR)
   JARVIS_SERVICE        ueberwachte Unit          (Default jarvis.service)
 """
 
@@ -40,7 +41,8 @@ DASHBOARD_FILE = Path(__file__).parent / "dashboard" / "index.html"
 
 PORT = int(os.environ.get("JARVIS_STATUS_PORT", "8090"))
 BIND = os.environ.get("JARVIS_STATUS_BIND", "0.0.0.0")
-APP_DIR = os.environ.get("JARVIS_APP_DIR", "/home/denny/jarvis")
+APP_DIR = os.environ.get("JARVIS_APP_DIR", "/home/denny/jarvis/agent")
+GIT_DIR = os.environ.get("JARVIS_GIT_DIR", APP_DIR)
 SERVICE = os.environ.get("JARVIS_SERVICE", "jarvis.service")
 
 # Das Dashboard wird von localhost bzw. file:// geladen und fragt den Pi
@@ -329,7 +331,7 @@ def read_git() -> dict:
     def git(*args: str) -> str:
         try:
             res = subprocess.run(
-                ("git", "-C", APP_DIR, *args),
+                ("git", "-C", GIT_DIR, *args),
                 capture_output=True, text=True, timeout=5, check=False,
             )
             return res.stdout.strip() if res.returncode == 0 else ""
@@ -352,7 +354,7 @@ def last_deploy() -> str:
     zuverlaessigste Marker fuer "wann lief das Update zuletzt".
     """
     try:
-        ts = os.path.getmtime(os.path.join(APP_DIR, ".git", "FETCH_HEAD"))
+        ts = os.path.getmtime(os.path.join(GIT_DIR, ".git", "FETCH_HEAD"))
     except OSError:
         return "–"
     return datetime.fromtimestamp(ts).strftime("%d.%m.%Y, %H:%M:%S")

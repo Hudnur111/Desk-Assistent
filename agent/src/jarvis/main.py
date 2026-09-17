@@ -23,6 +23,7 @@ from jarvis.tools.brain import brain_tools
 from jarvis.tools.builtin import builtin_tools
 from jarvis.tools.documents import document_tools
 from jarvis.tools.email import ImapEmailBackend, build_email_draft_tool
+from jarvis.tools.office_com import office_com_tools
 from jarvis.tools.registry import ToolRegistry
 from jarvis.ui.hub import UIHub
 from jarvis.ui.server import create_app
@@ -56,6 +57,8 @@ async def run() -> None:
     for tool in builtin_tools():
         registry.register(tool)
     for tool in document_tools():
+        registry.register(tool)
+    for tool in office_com_tools():
         registry.register(tool)
     brain = BrainStore(Path(settings.brain_path)) if settings.brain_enabled else None
     if brain is not None:

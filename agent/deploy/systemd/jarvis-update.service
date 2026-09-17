@@ -11,7 +11,7 @@ WorkingDirectory=/home/pi/jarvis
 # Nutzt dieselbe sudo-Regel wie ein GitHub-Actions-Runner es taete (siehe
 # bootstrap-pi.sh) - Restart von jarvis.service/jarvis-status.service ohne
 # Passwort, sonst keine erhoehten Rechte.
-ExecStart=/bin/bash /home/pi/jarvis/deploy/update.sh
+ExecStart=/bin/bash /home/pi/jarvis/agent/deploy/update.sh
 Environment=JARVIS_APP_DIR=/home/pi/jarvis
 Environment=JARVIS_BRANCH=main
 Environment=JARVIS_SERVICE=jarvis.service

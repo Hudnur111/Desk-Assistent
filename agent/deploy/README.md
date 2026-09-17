@@ -4,7 +4,7 @@
 
 ```bash
 git clone https://github.com/Hudnur111/Desk-Assistent.git ~/jarvis
-sudo bash ~/jarvis/deploy/bootstrap-pi.sh
+sudo bash ~/jarvis/agent/deploy/bootstrap-pi.sh
 ```
 
 Installiert System-Pakete, venv, `.env` (aus `.env.example`), die systemd-Unit
@@ -13,7 +13,7 @@ bestehende `.env`, `data/` und `.venv/` unangetastet. Pfad und Benutzer werden
 aus dem sudo-Aufrufer abgeleitet und in die Unit eingesetzt - `JARVIS_APP_DIR`
 und `JARVIS_USER` ueberschreiben das.
 
-Danach `ANTHROPIC_API_KEY` in `~/jarvis/.env` eintragen und
+Danach `ANTHROPIC_API_KEY` in `~/jarvis/agent/.env` eintragen und
 `sudo systemctl start jarvis.service`.
 
 Zusaetzlich installiert `bootstrap-pi.sh`:
@@ -32,7 +32,7 @@ Zusaetzlich installiert `bootstrap-pi.sh`:
 
 ## Automatischer Deploy bei jedem Push
 
-Zwei Wege stehen zur Wahl, beide fuehren `deploy/update.sh` aus (siehe unten).
+Zwei Wege stehen zur Wahl, beide fuehren `agent/deploy/update.sh` aus (siehe unten).
 `bootstrap-pi.sh` richtet standardmaessig Variante A ein.
 
 ### A) Polling-Timer (Default, braucht keinen Token)
@@ -57,7 +57,7 @@ automatisiert wird. Dafuer deployt jeder Push innerhalb von Sekunden statt
 bis zu 90s.
 
 ```bash
-bash ~/jarvis/deploy/install-runner.sh
+bash ~/jarvis/agent/deploy/install-runner.sh
 ```
 
 Gibt danach die drei Befehle aus, die den Token brauchen (`config.sh`,
@@ -72,7 +72,7 @@ sudo systemctl disable --now jarvis-update.timer
 
 1. Ausloeser: Timer-Tick (Variante A) oder `.github/workflows/deploy-pi.yml`
    auf dem Runner mit Label `jarvis-pi` (Variante B).
-2. `deploy/update.sh` macht `git fetch` + `reset --hard origin/main` in
+2. `agent/deploy/update.sh` macht `git fetch` + `reset --hard origin/main` in
    `/home/pi/jarvis` - ist der lokale Stand schon aktuell, passiert nichts.
 3. Hat sich `pyproject.toml` geaendert, laeuft `pip install -e .` nach.
 4. `sudo systemctl restart jarvis.service`. Wegen `Type=notify` kehrt der
@@ -87,7 +87,7 @@ angefasst. Es laeuft kein `git clean`.
 Manuell nachziehen geht in beiden Varianten jederzeit:
 
 ```bash
-bash ~/jarvis/deploy/update.sh
+bash ~/jarvis/agent/deploy/update.sh
 ```
 
 Die sudo-Regel in `/etc/sudoers.d/jarvis-deploy` erlaubt genau zwei Befehle

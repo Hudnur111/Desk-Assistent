@@ -5,7 +5,7 @@
 # der Auto-Deploy fuer den Service-Neustart braucht.
 #
 # Aufruf (auf dem Pi):
-#   sudo bash deploy/bootstrap-pi.sh
+#   sudo bash agent/deploy/bootstrap-pi.sh
 #
 # Ist idempotent - ein zweiter Durchlauf aktualisiert nur und loescht nichts.
 #
@@ -18,7 +18,7 @@
 set -euo pipefail
 
 if [[ "$(id -u)" -ne 0 ]]; then
-  echo "Bitte mit root-Rechten starten: sudo bash deploy/bootstrap-pi.sh" >&2
+  echo "Bitte mit root-Rechten starten: sudo bash agent/deploy/bootstrap-pi.sh" >&2
   exit 1
 fi
 
@@ -31,6 +31,7 @@ TARGET_GROUP="$(id -gn "$TARGET_USER")"
 TARGET_HOME="$(getent passwd "$TARGET_USER" | cut -d: -f6)"
 
 APP_DIR="${JARVIS_APP_DIR:-$TARGET_HOME/jarvis}"
+AGENT_DIR="$APP_DIR/agent"
 REPO="${JARVIS_REPO:-https://github.com/Hudnur111/Desk-Assistent.git}"
 BRANCH="${JARVIS_BRANCH:-main}"
 SERVICE=jarvis.service
@@ -62,7 +63,7 @@ if [[ -n "$FAN_GPIO" && -f "$CONFIG_TXT" ]]; then
   # oder eigenen Dienst. Keine Temperatursteuerung, einfach dauerhaft an.
   FAN_LINE="gpio=$FAN_GPIO=op,dh"
   if ! grep -qxF "$FAN_LINE" "$CONFIG_TXT"; then
-    printf '\n# Von deploy/bootstrap-pi.sh: Luefter an GPIO%s fest auf An\n%s\n' \
+    printf '\n# Von agent/deploy/bootstrap-pi.sh: Luefter an GPIO%s fest auf An\n%s\n' \
       "$FAN_GPIO" "$FAN_LINE" >> "$CONFIG_TXT"
     log "config.txt aktualisiert - wird erst nach einem Neustart aktiv."
     FAN_NEEDS_REBOOT=true
@@ -84,7 +85,7 @@ fi
 # Muss existieren, BEVOR jarvis-status.service startet: die Unit verwendet
 # ReadWritePaths=.../data als gezielte Ausnahme von ProtectHome=read-only,
 # und dieser Bind-Mount funktioniert nur fuer bereits vorhandene Pfade.
-install -d -o "$TARGET_USER" -g "$TARGET_GROUP" "$APP_DIR/data"
+install -d -o "$TARGET_USER" -g "$TARGET_GROUP" "$AGENT_DIR/data"
 
 UV="$TARGET_HOME/.local/bin/uv"
 log "Python 3.11 fuer das venv bereitstellen ..."
@@ -98,16 +99,16 @@ fi
 as_user "$UV" python install 3.11
 
 log "Python-venv und Abhaengigkeiten (dauert auf dem Pi einige Minuten) ..."
-if [[ ! -x "$APP_DIR/.venv/bin/python" ]]; then
-  as_user "$UV" venv --seed --python 3.11 "$APP_DIR/.venv"
+if [[ ! -x "$AGENT_DIR/.venv/bin/python" ]]; then
+  as_user "$UV" venv --seed --python 3.11 "$AGENT_DIR/.venv"
 fi
-as_user "$UV" pip install --python "$APP_DIR/.venv/bin/python" --upgrade -e "$APP_DIR"
+as_user "$UV" pip install --python "$AGENT_DIR/.venv/bin/python" --upgrade -e "$AGENT_DIR"
 
 env_is_new=false
-if [[ ! -f "$APP_DIR/.env" ]]; then
+if [[ ! -f "$AGENT_DIR/.env" ]]; then
   log ".env aus .env.example anlegen ..."
-  as_user cp "$APP_DIR/.env.example" "$APP_DIR/.env"
-  chmod 600 "$APP_DIR/.env"
+  as_user cp "$AGENT_DIR/.env.example" "$AGENT_DIR/.env"
+  chmod 600 "$AGENT_DIR/.env"
   env_is_new=true
 else
   log ".env existiert bereits - bleibt unveraendert."
@@ -120,7 +121,7 @@ for unit in "$SERVICE" "$STATUS_SERVICE" "$UPDATE_SERVICE" "$UPDATE_TIMER"; do
   sed -e "s|/home/pi/jarvis|$APP_DIR|g" \
       -e "s|^User=pi$|User=$TARGET_USER|" \
       -e "s|^Group=pi$|Group=$TARGET_GROUP|" \
-      "$APP_DIR/deploy/systemd/$unit" > "/etc/systemd/system/$unit"
+      "$AGENT_DIR/deploy/systemd/$unit" > "/etc/systemd/system/$unit"
 done
 systemctl daemon-reload
 systemctl enable "$SERVICE"
@@ -141,7 +142,7 @@ systemctl enable "$STATUS_SERVICE"
 systemctl restart "$STATUS_SERVICE"
 
 # Pollt periodisch auf neue Commits - Alternative zum GitHub-Actions-Runner
-# (deploy/install-runner.sh), die keinen Registrierungs-Token braucht: das
+# (agent/deploy/install-runner.sh), die keinen Registrierungs-Token braucht: das
 # Repo ist oeffentlich, git fetch funktioniert ohne Anmeldung. Wer spaeter
 # doch den Runner einrichtet, sollte diesen Timer stoppen, um doppelte
 # Deploys zu vermeiden (`sudo systemctl disable --now jarvis-update.timer`).
@@ -156,7 +157,7 @@ log "sudo-Regel fuer Auto-Deploy und Dashboard-Steuerung schreiben ..."
 # ruft sie im Auftrag eines Browser-Klicks auf).
 SUDOERS=/etc/sudoers.d/jarvis-deploy
 cat > "$SUDOERS" <<EOF
-# Von deploy/bootstrap-pi.sh erzeugt.
+# Von agent/deploy/bootstrap-pi.sh erzeugt.
 # Auto-Update (Timer oder GitHub-Actions-Runner): Neustart nach Deploy.
 $TARGET_USER ALL=(root) NOPASSWD: /usr/bin/systemctl restart $SERVICE, /bin/systemctl restart $SERVICE, /usr/bin/systemctl restart $STATUS_SERVICE, /bin/systemctl restart $STATUS_SERVICE
 # Dashboard-Steuerung (An/Ruhemodus/Aus) - unauthentifiziert erreichbar,
@@ -176,14 +177,14 @@ if [[ "$FAN_NEEDS_REBOOT" == "true" ]]; then
   log "Luefter-Konfiguration braucht einen Neustart, um zu greifen: sudo reboot"
 fi
 
-if [[ "$env_is_new" == "true" ]] || ! grep -Eq '^ANTHROPIC_API_KEY=.+' "$APP_DIR/.env"; then
+if [[ "$env_is_new" == "true" ]] || ! grep -Eq '^ANTHROPIC_API_KEY=.+' "$AGENT_DIR/.env"; then
   cat <<EOF
 
 [bootstrap] FERTIG - aber $SERVICE wurde noch NICHT gestartet.
-            In $APP_DIR/.env fehlt noch ANTHROPIC_API_KEY.
+            In $AGENT_DIR/.env fehlt noch ANTHROPIC_API_KEY.
             Key eintragen, dann starten:
 
-              nano $APP_DIR/.env
+              nano $AGENT_DIR/.env
               sudo systemctl start $SERVICE
               systemctl status $SERVICE
 
