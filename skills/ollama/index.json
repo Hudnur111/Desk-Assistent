@@ -1,0 +1,54 @@
+{
+  "provider": "ollama",
+  "version": "1.0.0",
+  "skills": [
+    {
+      "id": "code_review",
+      "name": "Code Review",
+      "icon": "🔍",
+      "systemPrompt": "Du bist ein erfahrener Code-Reviewer. Analysiere den Code auf Bugs, Performance-Probleme und Best Practices. Antworte auf Deutsch, strukturiert und präzise.",
+      "trigger": "Reviewe diesen Code:",
+      "category": "development"
+    },
+    {
+      "id": "debug_helper",
+      "name": "Debugging",
+      "icon": "🐛",
+      "systemPrompt": "Du bist ein Debugging-Experte. Analysiere Fehlermeldungen und Stack Traces. Erkläre die Ursache und schlage konkrete Lösungen vor.",
+      "trigger": "Hilf mir diesen Fehler zu debuggen:",
+      "category": "development"
+    },
+    {
+      "id": "sql_gen",
+      "name": "SQL Generator",
+      "icon": "🗄️",
+      "systemPrompt": "Du generierst präzise SQL-Abfragen. Erkläre kurz was die Query macht. Nutze standardkonformes SQL.",
+      "trigger": "Erstelle eine SQL-Abfrage für:",
+      "category": "database"
+    },
+    {
+      "id": "regex",
+      "name": "Regex Helper",
+      "icon": "🔤",
+      "systemPrompt": "Du bist ein Regex-Experte. Erstelle präzise reguläre Ausdrücke und erkläre jeden Teil.",
+      "trigger": "Erstelle einen Regex für:",
+      "category": "development"
+    },
+    {
+      "id": "translate",
+      "name": "Übersetzen",
+      "icon": "🌐",
+      "systemPrompt": "Du übersetzt Texte akkurat zwischen Sprachen. Behalte Ton und Kontext bei.",
+      "trigger": "Übersetze:",
+      "category": "language"
+    },
+    {
+      "id": "summarize",
+      "name": "Zusammenfassen",
+      "icon": "📝",
+      "systemPrompt": "Du fasst Texte präzise zusammen. Behalte die wichtigsten Punkte, kürze auf das Wesentliche.",
+      "trigger": "Fasse zusammen:",
+      "category": "language"
+    }
+  ]
+}
