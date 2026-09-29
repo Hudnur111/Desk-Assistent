@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Desk Assistant
+Comment=AI Desktop Client — Ollama + Claude
+Exec=bash -c "sleep 5 && chromium-browser --app=http://localhost:3000 --kiosk --disable-infobars --noerrdialogs"
+X-GNOME-Autostart-enabled=true
+Hidden=false
+NoDisplay=false

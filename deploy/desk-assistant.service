@@ -1,0 +1,21 @@
+[Unit]
+Description=Desk Assistant AI (Next.js + Ollama + Claude)
+Documentation=https://github.com/Hudnur111/Desk-Assistent
+After=network.target ollama.service
+Wants=ollama.service
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/Desk-Assistent
+Environment=NODE_ENV=production
+Environment=PORT=3000
+ExecStart=/usr/bin/node node_modules/.bin/next start -p 3000
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=desk-assistant
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,7 @@
+# /etc/sudoers.d/desk-assistant
+# Erlaubt dem 'pi' User den Desk Assistant Service ohne Passwort neu zu starten
+# Installieren mit: sudo cp deploy/desk-assistant-sudoers /etc/sudoers.d/desk-assistant
+pi ALL=(ALL) NOPASSWD: /bin/systemctl restart desk-assistant.service
+pi ALL=(ALL) NOPASSWD: /bin/systemctl start desk-assistant.service
+pi ALL=(ALL) NOPASSWD: /bin/systemctl stop desk-assistant.service
+pi ALL=(ALL) NOPASSWD: /bin/systemctl status desk-assistant.service
